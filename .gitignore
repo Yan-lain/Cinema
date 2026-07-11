@@ -1,0 +1,266 @@
+# ============================================================================
+# 项目级别 .gitignore 文件
+# 适用项目：影院管理系统（Spring Boot + Vue3）
+# 创建日期：2026-07-11
+# ============================================================================
+
+# ==========================================
+# 操作系统相关文件
+# ==========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.log
+*.tmp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ==========================================
+# 编辑器相关文件
+# ==========================================
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+*.idea/workspace.xml
+*.idea/tasks.xml
+*.idea/statistic.xml
+*.idea/modules.xml
+*.idea/*.iml
+*.idea/caches
+*.idea/uidesigner.xml
+*.idea/jarRepositories.xml
+*.idea/sqlDataSources.xml
+*.idea/dynamic.xml
+*.idea/uiDesigner.xml
+*.idea/gradle.xml
+*.idea/libraries
+*.idea/misc.xml
+*.idea/deployment.xml
+
+# Eclipse/STS
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache
+.apt_generated
+.factorypath
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# ==========================================
+# Java/Maven 相关文件
+# ==========================================
+# Maven构建输出
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Maven包装器
+.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.properties
+
+# Maven本地仓库（如果有）
+repository/
+
+# Java编译输出
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Java日志
+hs_err_pid*.log
+replay_pid*.log
+
+# ==========================================
+# Node.js/Vue 相关文件
+# ==========================================
+# Node依赖
+node_modules/
+
+# 构建输出
+dist/
+dist-ssr/
+*.local
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 包管理器锁文件（可选保留，建议保留）
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ==========================================
+# 数据库相关文件
+# ==========================================
+# SQLite数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# MySQL/MariaDB日志
+*.err
+*.log
+*.pid
+
+# 数据库备份
+*.sql
+*.sql.gz
+*.bak
+
+# ==========================================
+# 缓存和临时文件
+# ==========================================
+# 缓存目录
+.cache/
+.temp/
+.tmp/
+.temp_files/
+
+# 运行时缓存
+*.cache
+*.swp
+*.swo
+*~
+
+# ==========================================
+# 安全敏感文件
+# ==========================================
+# 配置文件（包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 证书和密钥
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.jks
+*.keystore
+
+# SSH密钥
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+
+# 其他敏感文件
+*.md5
+*.sha1
+*.sha256
+
+# ==========================================
+# Docker相关文件
+# ==========================================
+# Docker构建缓存
+.dockerignore
+docker-compose.override.yml
+
+# ==========================================
+# 文档和生成文件
+# ==========================================
+# 文档生成输出
+site/
+docs/_build/
+docs/.vitepress/cache/
+
+# PDF生成文件
+*.pdf
+
+# ==========================================
+# IDE运行配置
+# ==========================================
+# VS Code运行配置
+.vscode/launch.json
+.vscode/tasks.json
+
+# IntelliJ运行配置
+.idea/runConfigurations/
+.idea/launchConfigurations/
+
+# ==========================================
+# 测试相关文件
+# ==========================================
+# 测试报告
+coverage/
+.nyc_output/
+
+# 测试临时文件
+test-results/
+test-output/
+
+# ==========================================
+# 部署相关文件
+# ==========================================
+# 部署脚本输出
+deploy/
+release/
+*.rpm
+*.deb
+
+# ==========================================
+# 特定于本项目的忽略规则
+# ==========================================
+# Spring Boot打包后的JAR文件（如果在根目录生成）
+demo-*.jar
+*.jar.original
+
+# Redis数据目录
+redis-data/
+
+# MySQL数据目录
+mysql-data/
+
+# ==========================================
+# 注释说明
+# ==========================================
+# 1. 本文件覆盖项目根目录，各子目录可保留自己的.gitignore作为补充
+# 2. package-lock.json/yarn.lock建议保留，确保依赖版本一致性
+# 3. .env文件包含敏感信息（数据库密码等），必须忽略
+# 4. 如果需要共享部分配置，可创建.env.example作为模板
