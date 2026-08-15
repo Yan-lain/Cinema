@@ -17,14 +17,16 @@ public interface UserMapper {
     @Select("SELECT * FROM user WHERE username = #{username}")
     User findByUsername(String username);
 
+    @Select("SELECT * FROM user WHERE email = #{email}")
+    User findByEmail(String email);
+
     @Select("SELECT COUNT(*) FROM user WHERE username = #{username}")
     int countByUsername(String username);
     
     @Select("SELECT COUNT(*) FROM user WHERE email = #{email}")
     int countByEmail(String email);
     
-    @Select("SELECT * FROM user WHERE email = #{email}")
-    User findByEmail(String email);
+    
 
     @Select("SELECT * FROM user WHERE role = #{role}")
     List<User> findByRole(String role);

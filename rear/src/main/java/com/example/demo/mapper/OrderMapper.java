@@ -7,19 +7,34 @@ import java.util.List;
 @Mapper
 public interface OrderMapper {
 
-    @Select("SELECT * FROM orders WHERE id = #{id}")
+    /**
+     * 按ID查询订单（排除已软删除的订单）
+     */
+    @Select("SELECT * FROM orders WHERE id = #{id} AND deleted_at IS NULL")
     Order findById(@Param("id") Long id);
 
-    @Select("SELECT * FROM orders")
+    /**
+     * 查询所有订单（排除已软删除的订单）
+     */
+    @Select("SELECT * FROM orders WHERE deleted_at IS NULL")
     List<Order> findAll();
 
-    @Select("SELECT * FROM orders WHERE user_id = #{userId}")
+    /**
+     * 按用户ID查询订单（排除已软删除的订单）
+     */
+    @Select("SELECT * FROM orders WHERE user_id = #{userId} AND deleted_at IS NULL")
     List<Order> findByUserId(@Param("userId") Long userId);
 
-    @Select("SELECT * FROM orders WHERE order_number = #{orderNumber}")
+    /**
+     * 按订单号查询订单（排除已软删除的订单）
+     */
+    @Select("SELECT * FROM orders WHERE order_number = #{orderNumber} AND deleted_at IS NULL")
     Order findByOrderNumber(@Param("orderNumber") String orderNumber);
 
-    @Select("SELECT * FROM orders WHERE status = #{status}")
+    /**
+     * 按状态查询订单（排除已软删除的订单）
+     */
+    @Select("SELECT * FROM orders WHERE status = #{status} AND deleted_at IS NULL")
     List<Order> findByStatus(@Param("status") String status);
 
     @Insert("INSERT INTO orders(order_number, user_id, schedule_id, total_price, status, pay_status, refund_status) " +
@@ -30,7 +45,10 @@ public interface OrderMapper {
     @Update("UPDATE orders SET status=#{status}, pay_status=#{payStatus}, refund_status=#{refundStatus} WHERE id=#{id}")
     int update(Order order);
 
-    @Delete("DELETE FROM orders WHERE id=#{id}")
+    /**
+     * 软删除订单（设置deleted_at字段）
+     */
+    @Update("UPDATE orders SET deleted_at = NOW() WHERE id=#{id}")
     int deleteById(@Param("id") Long id);
 
     /**

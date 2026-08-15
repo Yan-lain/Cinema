@@ -9,8 +9,8 @@ public class ScheduleSeat {
     private String status;
     private LocalDateTime lockTime;
     private Long lockUserId;
-    private LocalDateTime createTime;
-    private LocalDateTime updateTime;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -24,8 +24,8 @@ public class ScheduleSeat {
     public void setLockTime(LocalDateTime lockTime) { this.lockTime = lockTime; }
     public Long getLockUserId() { return lockUserId; }
     public void setLockUserId(Long lockUserId) { this.lockUserId = lockUserId; }
-    public LocalDateTime getCreateTime() { return createTime; }
-    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
-    public LocalDateTime getUpdateTime() { return updateTime; }
-    public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

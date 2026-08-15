@@ -10,7 +10,7 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-import { useAuthStore } from './stores/auth'
+import { useAuthStore } from '@/stores/auth'
 const authStore = useAuthStore()
 authStore.loadUser()
 

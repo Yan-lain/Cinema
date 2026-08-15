@@ -7,12 +7,12 @@ public class Schedule {
     private Long id;
     private Long movieId;
     private Long hallId;
-    private Long cinemaId;
     private LocalDateTime showTime;
     private LocalDateTime endTime;
     private BigDecimal price;
     private String status;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -20,8 +20,6 @@ public class Schedule {
     public void setMovieId(Long movieId) { this.movieId = movieId; }
     public Long getHallId() { return hallId; }
     public void setHallId(Long hallId) { this.hallId = hallId; }
-    public Long getCinemaId() { return cinemaId; }
-    public void setCinemaId(Long cinemaId) { this.cinemaId = cinemaId; }
     public LocalDateTime getShowTime() { return showTime; }
     public void setShowTime(LocalDateTime showTime) { this.showTime = showTime; }
     public LocalDateTime getEndTime() { return endTime; }
@@ -32,4 +30,6 @@ public class Schedule {
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

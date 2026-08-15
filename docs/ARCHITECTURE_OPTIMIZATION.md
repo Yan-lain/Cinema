@@ -11,6 +11,48 @@
 
 ---
 
+前端组件 (Vue)
+    ↓ 调用 API
+前端请求层 (stores/api)
+    ↓ HTTP请求
+后端控制器 (Controller)
+    ↓ 调用业务逻辑
+后端服务层 (Service)
+    ↓ 执行SQL
+后端数据访问层 (Mapper)
+    ↓ JDBC连接
+MySQL数据库
+    ↓ Redis缓存层
+    ↓ 数据库连接池
+    ↓ 数据库连接
+    ↓ 数据库语句执行
+    ↓ 数据库结果集
+    ↓ 数据库连接关闭
+    
+
+前端页面 (localhost:5173)
+    ↓
+fetch('/api/movies')
+    ↓
+Vite 代理转发到 localhost:8080/api/movies
+    ↓
+后端 Spring Boot Controller
+    ↓
+处理业务逻辑，查询数据库
+    ↓
+返回 JSON 数据
+    ↓
+前端收到响应，渲染页面
+
+
+添加/更新/删除场次时清除以下缓存：
+1. schedule:detail:{id}
+2. schedule:movie:{movieId}  
+3. schedule:cinema:{cinemaId}（通过hall关联查询）
+4. schedule:hall:{hallId}
+5. schedule:occupied:{hallId}:{date}
+6. movie:showing（影响首页展示）
+
 ## 一、当前项目结构分析
 
 ### 1.1 当前目录结构

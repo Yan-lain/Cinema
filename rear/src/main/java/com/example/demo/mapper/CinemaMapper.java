@@ -13,8 +13,9 @@ public interface CinemaMapper {
     @Select("SELECT * FROM cinemas")
     List<Cinema> findAll();
 
+    // 根据状态查询影院，只返回活跃的影院
     @Select("SELECT * FROM cinemas WHERE status = 'active'")
-    List<Cinema> findAllActive();
+    List<Cinema> findByActive();
 
     @Select("SELECT * FROM cinemas WHERE city = #{city} AND status = 'active'")
     List<Cinema> findByCity(@Param("city") String city);

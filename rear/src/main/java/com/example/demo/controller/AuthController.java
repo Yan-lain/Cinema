@@ -1,421 +1,121 @@
 package com.example.demo.controller;
 
-import com.example.demo.entity.User;
-import com.example.demo.mapper.UserMapper;
-import com.example.demo.service.EmailService;
-import com.example.demo.service.RedisService;
+import com.example.demo.common.ApiResponse;
+import com.example.demo.dto.request.*;
+import com.example.demo.dto.response.RefreshTokenResponse;
+import com.example.demo.dto.response.UserResponse;
+import com.example.demo.service.RefreshTokenService;
+import com.example.demo.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-
+@Tag(name = "认证管理", description = "用户登录、注册、Token 刷新、密码重置等接口")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     @Autowired
-    private UserMapper userMapper;
-    
-    @Autowired
-    private RedisService redisService;
-    
-    @Autowired
-    private EmailService emailService;
-    
-    private static final String EMAIL_CODE_PREFIX = "email:code:";
-    private static final long CODE_EXPIRE_TIME = 300; // 5分钟过期
+    private UserService userService;
 
-    /**
-     * 发送邮箱验证码
-     */
+    @Autowired
+    private RefreshTokenService refreshTokenService;
+
+    @Operation(summary = "发送验证码", description = "发送邮箱验证码，有效期5分钟")
     @PostMapping("/sendCode")
-    public Map<String, Object> sendCode(@RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        String email = params.get("email");
-        
-        if (email == null || email.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "邮箱不能为空");
-            return result;
-        }
-        
-        // 生成6位验证码
-        String code = generateCode();
-        
-        // 存储到Redis，5分钟过期
-        redisService.set(EMAIL_CODE_PREFIX + email, code, CODE_EXPIRE_TIME, TimeUnit.SECONDS);
-        
-        // 使用真实邮件服务发送验证码
-        boolean sendSuccess = emailService.sendVerificationCode(email, code);
-        
-        if (sendSuccess) {
-            result.put("success", true);
-            result.put("message", "验证码已发送，有效期5分钟");
-        } else {
-            // 发送失败，删除已存储的验证码
-            redisService.delete(EMAIL_CODE_PREFIX + email);
-            result.put("success", false);
-            result.put("message", "邮件发送失败，请稍后重试");
-        }
-        
-        // 同时打印到控制台（方便测试）
-        System.out.println("【验证码】发送到 " + email + " 的验证码是：" + code);
-        
-        return result;
+    public ApiResponse<Void> sendCode(@Valid @RequestBody SendCodeRequest request) {
+        userService.sendVerificationCode(request);
+        return ApiResponse.success("验证码已发送，有效期5分钟", null);
     }
-    
-    /**
-     * 验证邮箱验证码（验证成功后不删除，允许后续使用一次）
-     */
+
+    @Operation(summary = "验证验证码")
     @PostMapping("/verifyCode")
-    public Map<String, Object> verifyCode(@RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        String email = params.get("email");
-        String code = params.get("code");
-        
-        if (email == null || email.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "邮箱不能为空");
-            return result;
-        }
-        
-        if (code == null || code.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "验证码不能为空");
-            return result;
-        }
-        
-        Object storedCodeObj = redisService.get(EMAIL_CODE_PREFIX + email);
-        String storedCode = storedCodeObj != null ? storedCodeObj.toString() : null;
-        if (storedCode == null) {
-            result.put("success", false);
-            result.put("message", "验证码已过期，请重新获取");
-            return result;
-        }
-        
-        if (!storedCode.equals(code)) {
-            result.put("success", false);
-            result.put("message", "验证码错误");
-            return result;
-        }
-        
-        // 验证成功后不删除验证码，允许在有效期内用于重置密码
-        // 验证码会在5分钟后自动过期
-        
-        result.put("success", true);
-        result.put("message", "验证成功");
-        return result;
-    }
-    
-    /**
-     * 生成6位数字验证码
-     */
-    private String generateCode() {
-        Random random = new Random();
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 6; i++) {
-            sb.append(random.nextInt(10));
-        }
-        return sb.toString();
+    public ApiResponse<Void> verifyCode(@Valid @RequestBody VerifyCodeRequest request) {
+        userService.verifyCode(request);
+        return ApiResponse.success("验证成功", null);
     }
 
+    @Operation(summary = "用户注册", description = "新用户注册账号，返回用户信息和 JWT Token")
     @PostMapping("/register")
-    public Map<String, Object> register(@RequestBody Map<String, Object> params) {
-        Map<String, Object> result = new HashMap<>();
-
-        String username = params.get("username") != null ? params.get("username").toString() : null;
-        String password = params.get("password") != null ? params.get("password").toString() : null;
-        String email = params.get("email") != null ? params.get("email").toString() : null;
-        String code = params.get("code") != null ? params.get("code").toString() : null;
-        
-        if (username == null || username.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "用户名不能为空");
-            return result;
-        }
-
-        if (password == null || password.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "密码不能为空");
-            return result;
-        }
-
-        if (email == null || email.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "邮箱不能为空");
-            return result;
-        }
-
-        if (code == null || code.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "验证码不能为空");
-            return result;
-        }
-
-        // 验证验证码
-        Object storedCodeObj = redisService.get(EMAIL_CODE_PREFIX + email);
-        String storedCode = storedCodeObj != null ? storedCodeObj.toString() : null;
-        if (storedCode == null) {
-            result.put("success", false);
-            result.put("message", "验证码已过期，请重新获取");
-            return result;
-        }
-        
-        if (!storedCode.equals(code)) {
-            result.put("success", false);
-            result.put("message", "验证码错误");
-            return result;
-        }
-
-        if (userMapper.countByUsername(username) > 0) {
-            result.put("success", false);
-            result.put("message", "用户名已存在");
-            return result;
-        }
-
-        if (userMapper.countByEmail(email) > 0) {
-            result.put("success", false);
-            result.put("message", "邮箱已被注册");
-            return result;
-        }
-
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword(password);
-        user.setEmail(email);
-        user.setNickname(username);
-        user.setStatus("active");
-        user.setRole("user");
-        userMapper.insert(user);
-        
-        // 删除已使用的验证码
-        redisService.delete(EMAIL_CODE_PREFIX + email);
-
-        result.put("success", true);
-        result.put("message", "注册成功");
-        result.put("data", user);
-        return result;
+    public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
+        UserResponse response = userService.register(request);
+        return ApiResponse.success("注册成功", response);
     }
 
+    @Operation(summary = "用户登录", description = "用户名密码登录，返回 accessToken 和 refreshToken")
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        String username = params.get("username");
-        String password = params.get("password");
-
-        if (username == null || password == null) {
-            result.put("success", false);
-            result.put("message", "用户名或密码不能为空");
-            return result;
-        }
-
-        User user = userMapper.findByUsername(username);
-        if (user == null) {
-            result.put("success", false);
-            result.put("message", "用户名或密码错误");
-        } else if (!password.equals(user.getPassword())) {
-            result.put("success", false);
-            result.put("message", "用户名或密码错误");
-        } else if ("disabled".equals(user.getStatus())) {
-            result.put("success", false);
-            result.put("message", "账号异常，请联系管理员");
-        } else {
-            result.put("success", true);
-            result.put("message", "登录成功");
-            result.put("data", user);
-        }
-        return result;
+    public ApiResponse<UserResponse> login(@Valid @RequestBody LoginRequest request) {
+        UserResponse response = userService.login(request);
+        return ApiResponse.success("登录成功", response);
     }
 
+    /**
+     * 刷新访问令牌
+     *
+     * 【接口说明】
+     * 前端在 accessToken 临期或收到 401 时调用此接口，用 refreshToken 换取新的 accessToken。
+     * 该接口为公开接口（在 SecurityConfig 与 AuthInterceptor 白名单中），通过 refreshToken 自证身份。
+     *
+     * 【刷新策略】采用 refreshToken 旋转：每次刷新后旧 refreshToken 立即失效，并下发新的 refreshToken。
+     *
+     * @param request 包含 refreshToken 的请求体
+     * @return 新的 accessToken + refreshToken
+     */
+    @Operation(summary = "刷新令牌", description = "用 refreshToken 换取新的 accessToken 和 refreshToken（令牌旋转策略）")
+    @PostMapping("/refresh")
+    public ApiResponse<RefreshTokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        RefreshTokenResponse response = refreshTokenService.refresh(request.getRefreshToken());
+        return ApiResponse.success("令牌刷新成功", response);
+    }
+
+    @Operation(summary = "用户登出", description = "前端清除本地 Token 完成登出")
     @PostMapping("/logout")
-    public Map<String, Object> logout() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("message", "退出成功");
-        return result;
+    public ApiResponse<Void> logout() {
+        return ApiResponse.success("退出成功", null);
     }
 
+    @Operation(summary = "获取用户信息", description = "根据用户 ID 查询用户信息")
     @GetMapping("/userinfo")
-    public Map<String, Object> getUserInfo(@RequestParam Long userId) {
-        Map<String, Object> result = new HashMap<>();
-        User user = userMapper.findById(userId);
-        if (user != null) {
-            result.put("success", true);
-            result.put("data", user);
-        } else {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-        }
-        return result;
+    public ApiResponse<UserResponse> getUserInfo(@RequestParam Long userId) {
+        UserResponse response = userService.getUserById(userId);
+        return ApiResponse.success(response);
     }
 
+    @Operation(summary = "上传头像")
     @PostMapping("/uploadAvatar")
-    public Map<String, Object> uploadAvatar(@RequestBody Map<String, Object> params) {
-        Map<String, Object> result = new HashMap<>();
-        
-        if (!params.containsKey("userId")) {
-            result.put("success", false);
-            result.put("message", "用户ID不能为空");
-            return result;
-        }
-        
+    public ApiResponse<UserResponse> uploadAvatar(@RequestBody java.util.Map<String, Object> params) {
         Long userId = Long.parseLong(params.get("userId").toString());
         String avatar = params.get("avatar") != null ? params.get("avatar").toString() : null;
-        
-        User user = userMapper.findById(userId);
-        if (user == null) {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-            return result;
-        }
-        
-        user.setAvatar(avatar);
-        userMapper.update(user);
-        
-        User updatedUser = userMapper.findById(userId);
-        result.put("success", true);
-        result.put("message", "头像上传成功");
-        result.put("data", updatedUser);
-        return result;
+        UserResponse response = userService.uploadAvatar(userId, avatar);
+        return ApiResponse.success("头像上传成功", response);
     }
 
+    @Operation(summary = "更新用户信息")
     @PostMapping("/update")
-    public Map<String, Object> updateUser(@RequestBody Map<String, Object> params) {
-        Map<String, Object> result = new HashMap<>();
-        
-        if (!params.containsKey("id")) {
-            result.put("success", false);
-            result.put("message", "用户ID不能为空");
-            return result;
-        }
-
-        Long userId = Long.parseLong(params.get("id").toString());
-        User existingUser = userMapper.findById(userId);
-        if (existingUser == null) {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-            return result;
-        }
-
-        // 更新用户信息，支持独立修改昵称、手机号、邮箱
-        // 昵称更新（支持前端发送的 name 或 nickname 字段）
-        if (params.containsKey("name")) {
-            existingUser.setNickname(params.get("name").toString());
-        } else if (params.containsKey("nickname")) {
-            existingUser.setNickname(params.get("nickname").toString());
-        }
-        
-        // 手机号更新（支持绑定和修改）
-        if (params.containsKey("phone")) {
-            existingUser.setPhone(params.get("phone").toString());
-        }
-        
-        // 邮箱更新（支持绑定和修改）
-        if (params.containsKey("email")) {
-            existingUser.setEmail(params.get("email").toString());
-        }
-        
-        // 头像更新
-        if (params.containsKey("avatar")) {
-            existingUser.setAvatar(params.get("avatar").toString());
-        }
-
-        userMapper.update(existingUser);
-        User updatedUser = userMapper.findById(userId);
-        result.put("success", true);
-        result.put("message", "更新成功");
-        result.put("data", updatedUser);
-        return result;
+    public ApiResponse<UserResponse> updateUser(@RequestBody UpdateUserRequest request) {
+        UserResponse response = userService.updateUser(request);
+        return ApiResponse.success("更新成功", response);
     }
 
+    @Operation(summary = "修改密码")
     @PostMapping("/changePassword")
-    public Map<String, Object> changePassword(@RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        Long userId = Long.parseLong(params.get("userId"));
-        String oldPassword = params.get("oldPassword");
-        String newPassword = params.get("newPassword");
-
-        User user = userMapper.findById(userId);
-        if (user == null) {
-            result.put("success", false);
-            result.put("message", "用户不存在");
-            return result;
-        }
-
-        if (!oldPassword.equals(user.getPassword())) {
-            result.put("success", false);
-            result.put("message", "原密码错误");
-            return result;
-        }
-
-        userMapper.updatePassword(userId, newPassword);
-        result.put("success", true);
-        result.put("message", "密码修改成功");
-        return result;
+    public ApiResponse<Void> changePassword(@RequestBody ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ApiResponse.success("密码修改成功", null);
     }
-    
-    /**
-     * 忘记密码 - 通过邮箱验证码重置密码
-     */
+
+    @Operation(summary = "忘记密码（邮箱验证码重置）")
     @PostMapping("/forgotPassword")
-    public Map<String, Object> forgotPassword(@RequestBody Map<String, Object> params) {
-        Map<String, Object> result = new HashMap<>();
-        String email = params.get("email") != null ? params.get("email").toString() : null;
-        String code = params.get("code") != null ? params.get("code").toString() : null;
-        String newPassword = params.get("newPassword") != null ? params.get("newPassword").toString() : null;
-        
-        if (email == null || email.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "邮箱不能为空");
-            return result;
-        }
-        
-        if (code == null || code.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "验证码不能为空");
-            return result;
-        }
-        
-        if (newPassword == null || newPassword.trim().isEmpty()) {
-            result.put("success", false);
-            result.put("message", "新密码不能为空");
-            return result;
-        }
-        
-        // 验证验证码
-        Object storedCodeObj = redisService.get(EMAIL_CODE_PREFIX + email);
-        String storedCode = storedCodeObj != null ? storedCodeObj.toString() : null;
-        if (storedCode == null) {
-            result.put("success", false);
-            result.put("message", "验证码已过期，请重新获取");
-            return result;
-        }
-        
-        if (!storedCode.equals(code)) {
-            result.put("success", false);
-            result.put("message", "验证码错误");
-            return result;
-        }
-        
-        // 查找用户
-        User user = userMapper.findByEmail(email);
-        if (user == null) {
-            result.put("success", false);
-            result.put("message", "该邮箱未注册");
-            return result;
-        }
-        
-        // 更新密码
-        userMapper.updatePassword(user.getId(), newPassword);
-        
-        // 删除已使用的验证码
-        redisService.delete(EMAIL_CODE_PREFIX + email);
-        
-        result.put("success", true);
-        result.put("message", "密码重置成功");
-        return result;
+    public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        userService.forgotPassword(request);
+        return ApiResponse.success("密码重置成功", null);
     }
+
+    // @PostMapping("/movies/search")
+    // public ApiResponse<UserResponse> searchMovies(@RequestBody SearchMoviesRequest request) {
+    //     UserResponse response = userService.searchMovies(request);
+    //     return ApiResponse.success(response);
+    // }
 }

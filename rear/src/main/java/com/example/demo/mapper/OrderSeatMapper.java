@@ -16,7 +16,7 @@ public interface OrderSeatMapper {
     @Select("SELECT * FROM order_seat WHERE order_id = #{orderId}")
     List<OrderSeat> findByOrderId(@Param("orderId") Long orderId);
 
-    @Insert("INSERT INTO order_seat(order_id, seat_id) VALUES(#{orderId}, #{seatId})")
+    @Insert("INSERT INTO order_seat(order_id, seat_id, schedule_id, price) VALUES(#{orderId}, #{seatId}, #{scheduleId}, #{price})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(OrderSeat orderSeat);
 

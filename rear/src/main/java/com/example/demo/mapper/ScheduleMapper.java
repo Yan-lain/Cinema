@@ -19,16 +19,25 @@ public interface ScheduleMapper {
     @Select("SELECT * FROM schedule WHERE hall_id = #{hallId}")
     List<Schedule> findByHallId(@Param("hallId") Long hallId);
 
-    @Select("SELECT * FROM schedule WHERE cinema_id = #{cinemaId}")
+    /**
+     * 通过影院ID查询场次（通过hall表关联）
+     */
+    @Select("SELECT s.* FROM schedule s JOIN hall h ON s.hall_id = h.id WHERE h.cinema_id = #{cinemaId}")
     List<Schedule> findByCinemaId(@Param("cinemaId") Long cinemaId);
 
-    @Select("SELECT * FROM schedule WHERE cinema_id = #{cinemaId} AND movie_id = #{movieId}")
+    /**
+     * 通过影院ID和电影ID查询场次（通过hall表关联）
+     */
+    @Select("SELECT s.* FROM schedule s JOIN hall h ON s.hall_id = h.id WHERE h.cinema_id = #{cinemaId} AND s.movie_id = #{movieId}")
     List<Schedule> findByCinemaIdAndMovieId(@Param("cinemaId") Long cinemaId, @Param("movieId") Long movieId);
 
     @Select("SELECT * FROM schedule WHERE status = #{status}")
     List<Schedule> findByStatus(@Param("status") String status);
 
-    @Select("SELECT * FROM schedule WHERE cinema_id = #{cinemaId} AND status = #{status}")
+    /**
+     * 通过影院ID和状态查询场次（通过hall表关联）
+     */
+    @Select("SELECT s.* FROM schedule s JOIN hall h ON s.hall_id = h.id WHERE h.cinema_id = #{cinemaId} AND s.status = #{status}")
     List<Schedule> findByCinemaIdAndStatus(@Param("cinemaId") Long cinemaId, @Param("status") String status);
 
     @Select("SELECT * FROM schedule WHERE hall_id = #{hallId} AND show_time < #{endTime} And end_time < #{showTime}")
@@ -40,12 +49,12 @@ public interface ScheduleMapper {
     @Select("SELECT * FROM schedule WHERE show_time BETWEEN #{start} AND #{end}")
     List<Schedule> findByShowTimeBetween(@Param("start") String start, @Param("end") String end);
 
-    @Insert("INSERT INTO schedule(movie_id, hall_id, cinema_id, show_time, end_time, price, status) " +
-            "VALUES(#{movieId}, #{hallId}, #{cinemaId}, #{showTime}, #{endTime}, #{price}, #{status})")
+    @Insert("INSERT INTO schedule(movie_id, hall_id, show_time, end_time, price, status) " +
+            "VALUES(#{movieId}, #{hallId}, #{showTime}, #{endTime}, #{price}, #{status})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Schedule schedule);
 
-    @Update("UPDATE schedule SET movie_id=#{movieId}, hall_id=#{hallId}, cinema_id=#{cinemaId}, " +
+    @Update("UPDATE schedule SET movie_id=#{movieId}, hall_id=#{hallId}, " +
             "show_time=#{showTime}, end_time=#{endTime}, price=#{price}, status=#{status} WHERE id=#{id}")
     int update(Schedule schedule);
 

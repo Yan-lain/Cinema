@@ -1,18 +1,26 @@
 import { defineStore } from 'pinia'
-import API_BASE_URL from '../api'
+import request from '../utils/request'
 
 export const useMovieStore = defineStore('movie', {
   state: () => ({
     movies: [],
+    total: 0,
+    currentPage: 0,
+    pageSize: 10,
     currentMovie: null,
     loading: false,
-    error: null
+    error: null,
+    searchKeyword: '',
+    filterStatus: ''
   }),
 
   getters: {
     getMovies: (state) => state.movies,
     getCurrentMovie: (state) => state.currentMovie,
     getMovieById: (state) => (id) => state.movies.find(m => m.id === id),
+    getTotalPages: (state) => Math.ceil(state.total / state.pageSize),
+    hasNextPage: (state) => state.currentPage < Math.ceil(state.total / state.pageSize) - 1,
+    hasPrevPage: (state) => state.currentPage > 0,
     getStatusDistribution: (state) => {
       const dist = { showing: 0, upcoming: 0, classic: 0 }
       state.movies.forEach(m => {
@@ -25,72 +33,103 @@ export const useMovieStore = defineStore('movie', {
   },
 
   actions: {
-    async fetchMovies() {
+    async fetchMoviesPage(page = 0, size = 10, status = '') {
       this.loading = true
       this.error = null
       try {
-        const response = await fetch(`${API_BASE_URL}/movies`)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+        const params = { page, size }
+        if (status) {
+          params.status = status
         }
-        const data = await response.json()
-        if (data.success) {
-          this.movies = data.data
-        } else {
-          this.error = data.message || '获取电影数据失败'
-        }
+        const pageData = await request.get('/movies/page', { params })
+        this.movies = pageData.data || []
+        this.total = pageData.total || 0
+        this.currentPage = pageData.page || page
+        this.pageSize = pageData.size || size
+        this.filterStatus = status
       } catch (error) {
-        console.error('🔴 Fetch movies error:', error)
-        this.error = '网络连接异常，请检查后端服务是否正常运行'
+        console.error('Fetch movies page error:', error)
+        this.error = error.message || '获取电影数据失败'
       } finally {
         this.loading = false
       }
     },
 
-    async fetchMovieById(id) {
+    async fetchMovieDetail(id) {
       this.loading = true
       this.error = null
       try {
-        //console.log('📡 正在获取电影详情，id:', id)
-        const response = await fetch(`${API_BASE_URL}/movies/${id}`)
-        const data = await response.json()
-       // console.log('📦 电影详情:', data)
-        if (data.success) {
-          this.currentMovie = data.data
-         // console.log('✅ 电影详情加载成功:', data.data.title)
-        } else {
-          this.error = data.message
-          console.log('❌ 电影详情加载失败:', data.message)
-        }
+        this.currentMovie = await request.get(`/movies/${id}`)
       } catch (error) {
-        console.error('🔴 Fetch movie error:', error)
-        this.error = '网络错误'
+        console.error('Fetch movie detail error:', error)
+        this.error = error.message || '网络错误'
       } finally {
         this.loading = false
       }
     },
 
-    async searchMovies(keyword) {
+    async searchMoviesPage(keyword, page = 0, size = 10) {
       this.loading = true
       this.error = null
+      this.searchKeyword = keyword
+      
       try {
-        //console.log('📡 正在搜索电影，关键词:', keyword)
-        const response = await fetch(`${API_BASE_URL}/movies/search?keyword=${encodeURIComponent(keyword)}`)
-        const data = await response.json()
-        //console.log('📦 搜索结果:', data)
-        if (data.success) {
-          this.movies = data.data
-         // console.log('✅ 搜索完成，找到', data.data.length, '部电影')
-        } else {
-          this.error = data.message
-          console.log('❌ 搜索失败:', data.message)
-        }
+        const pageData = await request.get('/movies/search/page', {
+          params: { keyword, page, size }
+        })
+        this.movies = pageData.data || []
+        this.total = pageData.total || 0
+        this.currentPage = pageData.page || page
+        this.pageSize = pageData.size || size
       } catch (error) {
-        console.error('🔴 Search movies error:', error)
-        this.error = '网络错误'
+        console.error('Search movies page error:', error)
+        this.error = error.message || '网络错误'
       } finally {
         this.loading = false
       }
+    },
+
+    async loadMore() {
+      if (!this.hasNextPage || this.loading) return
+      
+      try {
+        const nextPage = this.currentPage + 1
+        let pageData
+        
+        if (this.searchKeyword) {
+          pageData = await request.get('/movies/search/page', {
+            params: { keyword: this.searchKeyword, page: nextPage, size: this.pageSize }
+          })
+        } else {
+          const params = { page: nextPage, size: this.pageSize }
+          if (this.filterStatus) {
+            params.status = this.filterStatus
+          }
+          pageData = await request.get('/movies/page', { params })
+        }
+        
+        this.movies = [...this.movies, ...(pageData.data || [])]
+        this.total = pageData.total || this.total
+        this.currentPage = pageData.page || nextPage
+      } catch (error) {
+        console.error('Load more error:', error)
+      }
+    },
+
+    async refresh() {
+      if (this.searchKeyword) {
+        await this.searchMoviesPage(this.searchKeyword, 0, this.pageSize)
+      } else {
+        await this.fetchMoviesPage(0, this.pageSize, this.filterStatus)
+      }
+    },
+
+    clearSearch() {
+      this.searchKeyword = ''
+      this.filterStatus = ''
+      this.movies = []
+      this.total = 0
+      this.currentPage = 0
     }
   }
 })

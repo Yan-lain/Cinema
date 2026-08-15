@@ -7,6 +7,7 @@ public class Favorite {
     private Long userId;
     private Long movieId;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     public Favorite() {
     }
@@ -47,5 +48,13 @@ public class Favorite {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

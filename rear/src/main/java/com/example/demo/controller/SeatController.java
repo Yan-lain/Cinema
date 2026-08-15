@@ -1,178 +1,111 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.ApiResponse;
 import com.example.demo.entity.Seat;
-import com.example.demo.entity.Schedule;
-import com.example.demo.mapper.SeatMapper;
-import com.example.demo.mapper.ScheduleMapper;
-import com.example.demo.mapper.ScheduleSeatMapper;
+import com.example.demo.service.SeatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 座位控制器
+ * 【技术说明】用于处理与座位相关的HTTP请求
+ * 【功能说明】提供获取所有座位、根据ID获取座位、根据厅ID获取座位、批量添加座位、根据排片ID获取座位、批量更新座位状态等功能
+ * 【依赖说明】依赖SeatService，用于调用业务逻辑
+ * 【接口说明】提供GET、POST、PUT、DELETE等HTTP方法，用于处理与座位相关的请求
+ * 【返回值说明】返回JSON格式的响应体，包含状态码、消息、数据等
+ * 【参数说明】根据请求方法不同，参数不同，具体请参考接口文档
+ * 【异常说明】处理可能的异常情况，如座位不存在、排片不存在等
+ * 【接口文档】请参考接口文档，包含所有接口的详细说明
+ * 【接口示例】请参考接口文档，包含所有接口的示例请求和响应
+ * */
 @RestController
 @RequestMapping("/api/seats")
-@CrossOrigin(origins = "http://localhost:5173")
 public class SeatController {
 
     @Autowired
-    private SeatMapper seatMapper;
-
-    @Autowired
-    private ScheduleMapper scheduleMapper;
-
-    @Autowired
-    private ScheduleSeatMapper scheduleSeatMapper;
+    private SeatService seatService;
 
     @GetMapping
-    public Map<String, Object> getAllSeats() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Seat> seats = seatMapper.findAll();
-            result.put("success", true);
-            result.put("data", seats);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取座位列表失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<Seat>> getAllSeats() {
+        List<Seat> seats = seatService.getAllSeats();
+        return ApiResponse.success(seats);
     }
 
     @GetMapping("/{id}")
-    public Map<String, Object> getSeatById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Seat seat = seatMapper.findById(id);
-            if (seat != null) {
-                result.put("success", true);
-                result.put("data", seat);
-            } else {
-                result.put("success", false);
-                result.put("message", "座位不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取座位失败: " + e.getMessage());
+    public ApiResponse<Seat> getSeatById(@PathVariable Long id) {
+        Seat seat = seatService.getSeatById(id);
+        if (seat == null) {
+            return ApiResponse.error(404, "座位不存在");
         }
-        return result;
+        return ApiResponse.success(seat);
     }
+
 
     @GetMapping("/hall/{hallId}")
-    public Map<String, Object> getSeatsByHallId(@PathVariable Long hallId) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Seat> seats = seatMapper.findByHallId(hallId);
-            result.put("success", true);
-            result.put("data", seats);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取座位列表失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<Seat>> getSeatsByHallId(@PathVariable Long hallId) {
+        List<Seat> seats = seatService.getSeatsByHallId(hallId);
+        return ApiResponse.success(seats);
     }
 
+    /**
+     * 批量添加座位
+     * 【技术说明】用于批量添加座位到指定厅
+     * 【功能说明】根据请求体中的参数，批量创建指定数量的座位
+     * 【依赖说明】依赖SeatService，用于调用业务逻辑
+     * 【接口说明】提供POST方法，用于处理批量添加座位请求
+     * 【返回值说明】返回JSON格式的响应体，包含状态码、消息、数据等
+     * 【参数说明】根据请求体不同，参数不同，具体请参考接口文档
+     * 【异常说明】处理可能的异常情况，如厅不存在、参数错误等
+     * */
     @PostMapping("/batch")
-    public Map<String, Object> batchAddSeats(@RequestBody Map<String, Object> request) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Long hallId = ((Number) request.get("hallId")).longValue();
-            int rows = (Integer) request.get("rows");
-            int cols = (Integer) request.get("cols");
-            int startRow = request.get("startRow") != null ? (Integer) request.get("startRow") : 1;
-            int startCol = request.get("startCol") != null ? (Integer) request.get("startCol") : 1;
+    public ApiResponse<Void> batchAddSeats(@RequestBody Map<String, Object> request) {
+        Long hallId = ((Number) request.get("hallId")).longValue();
+        int rows = (Integer) request.get("rows");
+        int cols = (Integer) request.get("cols");
+        int startRow = request.get("startRow") != null ? (Integer) request.get("startRow") : 1;
+        int startCol = request.get("startCol") != null ? (Integer) request.get("startCol") : 1;
 
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < cols; j++) {
-                    Seat seat = new Seat();
-                    seat.setHallId(hallId);
-                    seat.setRowNum(startRow + i);
-                    seat.setColNum(startCol + j);
-                    seat.setSeatNumber((startRow + i) + "-" + (startCol + j));
-                    seatMapper.insert(seat);
-                }
-            }
-
-            result.put("success", true);
-            result.put("message", "成功创建 " + (rows * cols) + " 个座位");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "批量创建座位失败: " + e.getMessage());
-        }
-        return result;
+        seatService.batchAddSeats(hallId, rows, cols, startRow, startCol);
+        return ApiResponse.success("成功创建 " + (rows * cols) + " 个座位", null);
     }
 
+    /**
+     * 根据排片ID获取座位
+     * 【技术说明】用于根据排片ID获取所有座位
+     * 【功能说明】根据排片ID查询所有座位
+     * 【依赖说明】依赖SeatService，用于调用业务逻辑
+     * 【接口说明】提供GET方法，用于处理根据排片ID获取座位请求
+     * 【返回值说明】返回JSON格式的响应体，包含状态码、消息、数据等
+     * 【参数说明】根据请求体不同，参数不同，具体请参考接口文档
+     * 【异常说明】处理可能的异常情况，如排片不存在等
+     * */
     @GetMapping("/schedule/{scheduleId}")
-    public Map<String, Object> getSeatsByScheduleId(@PathVariable Long scheduleId) {
-        Map<String, Object> result = new HashMap<>();
+    public ApiResponse<List<Map<String, Object>>> getSeatsByScheduleId(@PathVariable Long scheduleId) {
         try {
-            Schedule schedule = scheduleMapper.findById(scheduleId);
-            if (schedule == null) {
-                result.put("success", false);
-                result.put("message", "场次不存在");
-                return result;
-            }
-
-            List<Seat> seats = seatMapper.findByHallId(schedule.getHallId());
-
-            // 获取该场次已售出和已锁定的座位ID列表
-            List<Long> unavailableSeatIds = scheduleSeatMapper.findUnavailableSeatIdsByScheduleId(scheduleId);
-
-            List<Map<String, Object>> seatList = new java.util.ArrayList<>();
-            for (Seat seat : seats) {
-                Map<String, Object> seatMap = new HashMap<>();
-                seatMap.put("id", seat.getId());
-                seatMap.put("hallId", seat.getHallId());
-                seatMap.put("row", seat.getRowNum());
-                seatMap.put("col", seat.getColNum());
-                seatMap.put("seatNumber", seat.getSeatNumber());
-
-                // 根据schedule_seat表判断状态，而不是seat表
-                if (unavailableSeatIds.contains(seat.getId())) {
-                    seatMap.put("status", "sold");
-                } else {
-                    seatMap.put("status", "available");
-                }
-
-                seatList.add(seatMap);
-            }
-
-            result.put("success", true);
-            result.put("data", seatList);
-            result.put("hallId", schedule.getHallId());
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取座位列表失败: " + e.getMessage());
+            List<Map<String, Object>> seats = seatService.getSeatsByScheduleId(scheduleId);
+            return ApiResponse.success(seats);
+        } catch (RuntimeException e) {
+            return ApiResponse.error(404, e.getMessage());
         }
-        return result;
     }
 
+    /**
+     * 批量更新座位状态
+     * 【技术说明】用于批量更新座位状态
+     * 【功能说明】根据请求体中的参数，批量更新指定座位的状态
+     * 【依赖说明】依赖SeatService，用于调用业务逻辑
+     * 【接口说明】提供PUT方法，用于处理批量更新座位状态请求
+     * 【返回值说明】返回JSON格式的响应体，包含状态码、消息、数据等
+     * 【参数说明】根据请求体不同，参数不同，具体请参考接口文档
+     * 【异常说明】处理可能的异常情况，如座位不存在等
+     * */
     @PutMapping("/batch")
-    public Map<String, Object> batchUpdateStatus(@RequestBody Map<String, Object> request) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Long> seatIds = (List<Long>) request.get("seatIds");
-
-            for (Long seatId : seatIds) {
-                Seat seat = seatMapper.findById(seatId);
-                if (seat != null) {
-                    seatMapper.update(seat);
-                }
-            }
-
-            result.put("success", true);
-            result.put("message", "成功更新 " + seatIds.size() + " 个座位状态");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "批量更新座位状态失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Void> batchUpdateStatus(@RequestBody Map<String, Object> request) {
+        List<Long> seatIds = (List<Long>) request.get("seatIds");
+        seatService.batchUpdateStatus(seatIds);
+        return ApiResponse.success("成功更新 " + seatIds.size() + " 个座位状态", null);
     }
 }

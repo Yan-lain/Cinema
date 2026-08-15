@@ -1,149 +1,69 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.ApiResponse;
 import com.example.demo.entity.Hall;
-import com.example.demo.mapper.HallMapper;
+import com.example.demo.service.HallService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/halls")
-@CrossOrigin(origins = "http://localhost:5173")
 public class HallController {
 
     @Autowired
-    private HallMapper hallMapper;
+    private HallService hallService;
 
     @GetMapping
-    public Map<String, Object> getAllHalls(@RequestParam(required = false) Long cinemaId) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Hall> halls;
-            if (cinemaId != null) {
-                halls = hallMapper.findByCinemaId(cinemaId);
-            } else {
-                halls = hallMapper.findAll();
-            }
-            result.put("success", true);
-            result.put("data", halls);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取放映厅列表失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<Hall>> getAllHalls(@RequestParam(required = false) Long cinemaId) {
+        List<Hall> halls = hallService.getAllHalls(cinemaId);
+        return ApiResponse.success(halls);
     }
 
     @GetMapping("/{id}")
-    public Map<String, Object> getHallById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Hall hall = hallMapper.findById(id);
-            if (hall != null) {
-                result.put("success", true);
-                result.put("data", hall);
-            } else {
-                result.put("success", false);
-                result.put("message", "放映厅不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取放映厅信息失败: " + e.getMessage());
+    public ApiResponse<Hall> getHallById(@PathVariable Long id) {
+        Hall hall = hallService.getHallById(id);
+        if (hall == null) {
+            return ApiResponse.error(404, "放映厅不存在");
         }
-        return result;
+        return ApiResponse.success(hall);
     }
 
     @PostMapping
-    public Map<String, Object> addHall(@RequestBody Hall hall) {
-        
-        Map<String, Object> result = new HashMap<>();
-        try {
-            if (hall.getStatus() == null) {
-                hall.setStatus("active");
-            }
-            hallMapper.insert(hall);
-            result.put("success", true);
-            result.put("message", "放映厅添加成功");
-            result.put("data", hall);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "添加放映厅失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Hall> addHall(@RequestBody Hall hall) {
+        Hall savedHall = hallService.addHall(hall);
+        return ApiResponse.success("放映厅添加成功", savedHall);
     }
 
     @PutMapping("/{id}")
-    public Map<String, Object> updateHall(@PathVariable Long id, @RequestBody Hall hall) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Hall existing = hallMapper.findById(id);
-            if (existing == null) {
-                result.put("success", false);
-                result.put("message", "放映厅不存在");
-                return result;
-            }
-            
-            hall.setId(id);
-            hallMapper.update(hall);
-            result.put("success", true);
-            result.put("message", "放映厅更新成功");
-            result.put("data", hall);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新放映厅失败: " + e.getMessage());
+    public ApiResponse<Void> updateHall(@PathVariable Long id, @RequestBody Hall hall) {
+        Hall existing = hallService.getHallById(id);
+        if (existing == null) {
+            return ApiResponse.error(404, "放映厅不存在");
         }
-        return result;
+        hallService.updateHall(id, hall);
+        return ApiResponse.success("放映厅更新成功", null);
     }
 
     @PutMapping("/{id}/status")
-    public Map<String, Object> updateHallStatus(@PathVariable Long id, @RequestBody Map<String, String> request) {
-        Map<String, Object> result = new HashMap<>();
+    public ApiResponse<Void> updateHallStatus(@PathVariable Long id, @RequestBody Map<String, String> request) {
         try {
-            Hall hall = hallMapper.findById(id);
-            if (hall == null) {
-                result.put("success", false);
-                result.put("message", "放映厅不存在");
-                return result;
-            }
-            
-            String status = request.get("status");
-            hall.setStatus(status);
-            hallMapper.update(hall);
-            result.put("success", true);
-            result.put("message", "状态更新成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新状态失败: " + e.getMessage());
+            hallService.updateHallStatus(id, request.get("status"));
+            return ApiResponse.success("状态更新成功", null);
+        } catch (RuntimeException e) {
+            return ApiResponse.error(404, e.getMessage());
         }
-        return result;
     }
 
     @DeleteMapping("/{id}")
-    public Map<String, Object> deleteHall(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
+    public ApiResponse<Void> deleteHall(@PathVariable Long id) {
         try {
-            Hall hall = hallMapper.findById(id);
-            if (hall == null) {
-                result.put("success", false);
-                result.put("message", "放映厅不存在");
-                return result;
-            }
-            
-            hallMapper.deleteById(id);
-            result.put("success", true);
-            result.put("message", "放映厅删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除放映厅失败: " + e.getMessage());
+            hallService.deleteHall(id);
+            return ApiResponse.success("放映厅删除成功", null);
+        } catch (RuntimeException e) {
+            return ApiResponse.error(404, e.getMessage());
         }
-        return result;
     }
 }

@@ -27,4 +27,5 @@ public interface SeatMapper {
 
     @Delete("DELETE FROM seat WHERE id=#{id}")
     int deleteById(@Param("id") Long id);
+    
 }

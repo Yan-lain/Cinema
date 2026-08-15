@@ -1,49 +1,31 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.ApiResponse;
 import com.example.demo.entity.OrderSeat;
-import com.example.demo.mapper.OrderSeatMapper;
+import com.example.demo.service.OrderSeatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/order-seats")
-@CrossOrigin(origins = "http://localhost:5173")
 public class OrderSeatController {
 
     @Autowired
-    private OrderSeatMapper orderSeatMapper;
+    private OrderSeatService orderSeatService;
 
+    // 获取所有订单座位
     @GetMapping
-    public Map<String, Object> getAllOrderSeats() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<OrderSeat> seats = orderSeatMapper.findAll();
-            result.put("success", true);
-            result.put("data", seats);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取订单座位失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<OrderSeat>> getAllOrderSeats() {
+        List<OrderSeat> seats = orderSeatService.getAllOrderSeats();
+        return ApiResponse.success(seats);
     }
 
+    // 根据订单ID获取订单座位
     @GetMapping("/order/{orderId}")
-    public Map<String, Object> getOrderSeatsByOrderId(@PathVariable Long orderId) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<OrderSeat> seats = orderSeatMapper.findByOrderId(orderId);
-            result.put("success", true);
-            result.put("data", seats);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取订单座位失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<OrderSeat>> getOrderSeatsByOrderId(@PathVariable Long orderId) {
+        List<OrderSeat> seats = orderSeatService.getOrderSeatsByOrderId(orderId);
+        return ApiResponse.success(seats);
     }
 }

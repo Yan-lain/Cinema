@@ -1,531 +1,506 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.ApiResponse;
+import com.example.demo.dto.request.LoginRequest;
+import com.example.demo.dto.response.UserResponse;
+import com.example.demo.dto.response.MovieResponse;
 import com.example.demo.entity.Announcement;
 import com.example.demo.entity.Cinema;
-import com.example.demo.entity.Hall;
 import com.example.demo.entity.Movie;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.Schedule;
 import com.example.demo.entity.User;
-import com.example.demo.mapper.AnnouncementMapper;
-import com.example.demo.mapper.CinemaMapper;
-import com.example.demo.mapper.HallMapper;
-import com.example.demo.mapper.MovieMapper;
-import com.example.demo.mapper.OrderMapper;
-import com.example.demo.mapper.ScheduleMapper;
-import com.example.demo.mapper.UserMapper;
-import com.example.demo.service.RedisService;
+import com.example.demo.entity.Hall;
+import com.example.demo.entity.Seat;
+import com.example.demo.service.AdminService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 管理员控制器
+ *
+ * 【架构说明】
+ * 仅负责接收 HTTP 请求、调用 AdminService 处理业务、封装 ApiResponse 返回。
+ * 业务逻辑全部下沉到 AdminServiceImpl，异常由 GlobalExceptionHandler 统一处理。
+ *
+ * 【职责边界】
+ * - 本类：路由映射、参数提取、响应包装
+ * - AdminService：业务校验、数据组装、缓存维护
+ * - GlobalExceptionHandler：异常捕获与统一错误响应
+ *
+ * 【安全说明】
+ * 管理员接口访问权限由 SecurityConfig 的 hasRole("ADMIN") 控制，
+ * 登录接口 /api/admin/login 在 SecurityConfig 中配置为 permitAll。
+ */
+@Tag(name = "管理员后台", description = "管理员专用接口：影院、电影、场次、订单、用户、公告等全模块管理")
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "http://localhost:5173")//配置了全局的CORS，这里可以省略
 public class AdminController {
 
     @Autowired
-    private MovieMapper movieMapper;
+    private AdminService adminService;
 
-    @Autowired
-    private RedisService redisService;
+    // ==================== 管理员登录 ====================
 
-    @Autowired
-    private ScheduleMapper scheduleMapper;
+    /**
+     * 管理员登录接口
+     *
+     * @param request 登录请求（用户名 + 密码）
+     * @return 登录成功返回用户信息和 Token
+     * @throws IllegalArgumentException 如果用户名或密码错误
+     * @throws Exception 如果其他业务异常
+     * @return ApiResponse<UserResponse>
+     * @see LoginRequest
+     * @see UserResponse
+     * @see ApiResponse
+     */
+    @Operation(summary = "管理员登录", description = "管理员用户名密码登录，返回 JWT Token")
+    @PostMapping("/login")
+    public ApiResponse<UserResponse> login(@Valid @RequestBody LoginRequest request) {
+        UserResponse response = adminService.login(request);
+         return ApiResponse.success("管理员登录成功", response);
+    }
 
-    @Autowired
-    private HallMapper hallMapper;
+    // ==================== 影院管理 ====================
 
-    @Autowired
-    private AnnouncementMapper announcementMapper;
-
-    @Autowired
-    private CinemaMapper cinemaMapper;
-
-    @Autowired
-    private UserMapper userMapper;
-
-
-    @Autowired
-    private OrderMapper orderMapper;
-
-    // ============ 影院管理 ============
-
+    /**
+     * 查询所有有效影院
+     */
+    @Operation(summary = "查询所有影院（管理员）")
     @GetMapping("/cinemas")
-    public Map<String, Object> getAllCinemas() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Cinema> cinemas = cinemaMapper.findAllActive();
-            result.put("success", true);
-            result.put("data", cinemas);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取影院列表失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<Cinema>> getAllCinemas() {
+        return ApiResponse.success(adminService.getAllCinemas());
     }
 
+    /**
+     * 根据 ID 查询影院
+     */
+    @Operation(summary = "根据 ID 查询影院")
     @GetMapping("/cinemas/{id}")
-    public Map<String, Object> getCinemaById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Cinema cinema = cinemaMapper.findById(id);
-            if (cinema != null) {
-                result.put("success", true);
-                result.put("data", cinema);
-            } else {
-                result.put("success", false);
-                result.put("message", "影院不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取影院信息失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Cinema> getCinemaById(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getCinemaById(id));
     }
 
+    /**
+     * 新增影院
+     */
+    @Operation(summary = "新增影院")
     @PostMapping("/cinemas")
-    public Map<String, Object> addCinema(@RequestBody Cinema cinema) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            if (cinema.getStatus() == null) {
-                cinema.setStatus("active");
-            }
-            cinemaMapper.insert(cinema);
-            result.put("success", true);
-            result.put("message", "影院添加成功");
-            result.put("data", cinema);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "添加影院失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Cinema> addCinema(@RequestBody Cinema cinema) {
+        return ApiResponse.success("影院添加成功", adminService.addCinema(cinema));
     }
 
+    /**
+     * 更新影院信息
+     */
+    @Operation(summary = "更新影院信息")
     @PutMapping("/cinemas/{id}")
-    public Map<String, Object> updateCinema(@PathVariable Long id, @RequestBody Cinema cinema) {
-        System.out.println("SDadadadasada");
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Cinema existing = cinemaMapper.findById(id);
-            if (existing == null) {
-                result.put("success", false);
-                result.put("message", "影院不存在");
-                return result;
-            }
-            
-            cinema.setId(id);
-            cinemaMapper.update(cinema);
-            result.put("success", true);
-            result.put("message", "影院更新成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新影院失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Void> updateCinema(@PathVariable Long id, @RequestBody Cinema cinema) {
+        adminService.updateCinema(id, cinema);
+        return ApiResponse.success("影院更新成功", null);
     }
 
+    /**
+     * 删除影院
+     */
+    @Operation(summary = "删除影院")
     @DeleteMapping("/cinemas/{id}")
-    public Map<String, Object> deleteCinema(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Cinema cinema = cinemaMapper.findById(id);
-            if (cinema == null) {
-                result.put("success", false);
-                result.put("message", "影院不存在");
-                return result;
-            }
-            
-            cinemaMapper.deleteById(id);
-            result.put("success", true);
-            result.put("message", "影院删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除影院失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Void> deleteCinema(@PathVariable Long id) {
+        adminService.deleteCinema(id);
+        return ApiResponse.success("影院删除成功", null);
     }
 
-    // ============ 电影管理 ============
+    // ==================== 放映厅管理 ==================
+    /**
+     * 查询所有放映厅
+     */
+    @Operation(summary = "查询所有放映厅")
+    @GetMapping("/halls")
+    public ApiResponse<List<Hall>> getAllHalls() {
+        return ApiResponse.success(adminService.getAllHalls());
+    }
 
+    //====================================待定
+
+    // ==================== 电影管理 ====================
+
+    /**
+     * 查询所有电影
+     */
+    @Operation(summary = "查询所有电影（管理员）")
     @GetMapping("/movies")
-    public Map<String, Object> getAllMovies() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Movie> movies = movieMapper.findAll();
-            result.put("success", true);
-            result.put("data", movies);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取电影列表失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<List<MovieResponse>> getAllMovies() {
+        // 调用 AdminService 获取所有电影并转换为 MovieResponse 列表
+        List<MovieResponse> responses = adminService.getAllMovies();
+        return ApiResponse.success(responses);
     }
 
+    /**
+     * 根据 ID 查询电影
+     */
+    @Operation(summary = "根据 ID 查询电影")
     @GetMapping("/movies/{id}")
-    public Map<String, Object> getMovieById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Movie movie = movieMapper.findById(id);
-            if (movie != null) {
-                result.put("success", true);
-                result.put("data", movie);
-            } else {
-                result.put("success", false);
-                result.put("message", "电影不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取电影信息失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<MovieResponse> getMovieById(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getMovieById(id));
     }
 
+    /**
+     * 新增电影
+     */
+    @Operation(summary = "新增电影")
     @PostMapping("/movies")
-    public Map<String, Object> addMovie(@RequestBody Movie movie) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            if (movie.getStatus() == null) {
-                movie.setStatus("showing");
-            }
-            movieMapper.insert(movie);
-            
-            // 更新缓存：删除相关缓存，下次请求会重新从数据库获取
-            redisService.delete("movie:list");
-            redisService.delete("movie:showing");
-            
-            result.put("success", true);
-            result.put("message", "电影添加成功");
-            result.put("data", movie);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "添加电影失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<MovieResponse> addMovie(@RequestBody Movie movie) {
+        return ApiResponse.success("电影添加成功", adminService.addMovie(movie));
     }
 
+    /**
+     * 更新电影信息
+     */
+    @Operation(summary = "更新电影信息")
     @PutMapping("/movies/{id}")
-    public Map<String, Object> updateMovie(@PathVariable Long id, @RequestBody Movie movie) {
-
-        
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Movie existing = movieMapper.findById(id);
-            if (existing == null) {
-                result.put("success", false);
-                result.put("message", "电影不存在");
-                return result;
-            }
-            
-            movie.setId(id);
-            movieMapper.update(movie);
-            
-            // 更新缓存
-            redisService.delete("movie:list");
-            redisService.delete("movie:showing");
-            redisService.delete("movie:detail:" + id);
-            
-            result.put("success", true);
-            result.put("message", "电影更新成功");
-            result.put("data", movie);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新电影失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<MovieResponse> updateMovie(@PathVariable Long id, @RequestBody Movie movie) {
+        return ApiResponse.success("电影更新成功", adminService.updateMovie(id, movie));
     }
 
+    /**
+     * 删除电影
+     */
+    @Operation(summary = "删除电影")
     @DeleteMapping("/movies/{id}")
-    public Map<String, Object> deleteMovie(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Movie movie = movieMapper.findById(id);
-            if (movie == null) {
-                result.put("success", false);
-                result.put("message", "电影不存在");
-                return result;
-            }
-            
-            movieMapper.deleteById(id);
-            
-            // 更新缓存
-            redisService.delete("movie:list");
-            redisService.delete("movie:showing");
-            redisService.delete("movie:detail:" + id);
-            
-            result.put("success", true);
-            result.put("message", "电影删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除电影失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Void> deleteMovie(@PathVariable Long id) {
+        adminService.deleteMovie(id);
+        return ApiResponse.success("电影删除成功", null);
     }
 
+    /**
+     * 更新电影状态
+     */
+    @Operation(summary = "更新电影状态")
     @PutMapping("/movies/{id}/status")
-    public Map<String, Object> updateMovieStatus(@PathVariable Long id, @RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            String status = params.get("status");
-            movieMapper.updateStatus(id, status);
-            
-            // 更新缓存
-            redisService.delete("movie:list");
-            redisService.delete("movie:showing");
-            redisService.delete("movie:detail:" + id);
-            
-            result.put("success", true);
-            result.put("message", "电影状态更新成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新电影状态失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Void> updateMovieStatus(@PathVariable Long id, @RequestBody Map<String, String> params) {
+        adminService.updateMovieStatus(id, params.get("status"));
+        return ApiResponse.success("电影状态更新成功", null);
     }
 
-    // ============ 场次管理 ============
+    // ==================== 场次管理 ====================
 
+    /**
+     * 查询场次列表（支持多条件筛选）
+     */
+    @Operation(summary = "查询场次列表（支持筛选）")
     @GetMapping("/schedules")
-    public Map<String, Object> getAllSchedules(
+    public ApiResponse<List<Map<String, Object>>> getAllSchedules(
             @RequestParam(required = false) Long cinemaId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Schedule> schedules;
-            if (cinemaId != null && status != null && !status.isEmpty()) {
-                schedules = scheduleMapper.findByCinemaIdAndStatus(cinemaId, status);
-            } else if (cinemaId != null) {
-                schedules = scheduleMapper.findByCinemaId(cinemaId);
-            } else if (status != null && !status.isEmpty()) {
-                schedules = scheduleMapper.findByStatus(status);
-            } else {
-                schedules = scheduleMapper.findAll();
-            }
-            
-            List<Map<String, Object>> scheduleList = new java.util.ArrayList<>();
-            LocalDateTime now = LocalDateTime.now();
-            
-            for (Schedule schedule : schedules) {
-                // 过滤过期场次（即使状态为available，如果放映时间已过也视为过期）
-                if ("available".equals(schedule.getStatus()) && schedule.getShowTime().isBefore(now)) {
-                    continue;
-                }
-                
-                // 关键词过滤
-                if (keyword != null && !keyword.isEmpty()) {
-                    Movie movie = movieMapper.findById(schedule.getMovieId());
-                    String movieTitle = movie != null ? movie.getTitle() : "";
-                    if (!movieTitle.toLowerCase().contains(keyword.toLowerCase())) {
-                        continue;
-                    }
-                }
-                
-                Map<String, Object> scheduleMap = new HashMap<>();
-                scheduleMap.put("id", schedule.getId());
-                scheduleMap.put("movieId", schedule.getMovieId());
-                scheduleMap.put("hallId", schedule.getHallId());
-                scheduleMap.put("cinemaId", schedule.getCinemaId());
-                scheduleMap.put("showTime", schedule.getShowTime().toString());
-                scheduleMap.put("endTime", schedule.getEndTime() != null ?schedule.getEndTime().toString() : null);
-                scheduleMap.put("price", schedule.getPrice());
-                // 根据放映时间动态判断状态（用于getScheduleById）
-                String displayStatus = schedule.getStatus();
-                if ("available".equals(schedule.getStatus()) && schedule.getShowTime().isBefore(LocalDateTime.now())) {
-                    displayStatus = "expired";
-                }
-                scheduleMap.put("status", displayStatus);
-                
-                Hall hall = hallMapper.findById(schedule.getHallId());
-                if (hall != null) {
-                    scheduleMap.put("hallNumber", hall.getHallNumber());
-                    scheduleMap.put("rows", hall.getRows());
-                    scheduleMap.put("cols", hall.getCols());
-                }
-                
-                // 添加电影信息
-                Movie movie = movieMapper.findById(schedule.getMovieId());
-                if (movie != null) {
-                    scheduleMap.put("movieTitle", movie.getTitle());
-                    scheduleMap.put("moviePoster", movie.getPoster());
-                }
-                
-                scheduleList.add(scheduleMap);
-            }
-            
-            result.put("success", true);
-            result.put("data", scheduleList);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取场次列表失败: " + e.getMessage());
-        }
-        return result;
+        return ApiResponse.success(adminService.getAllSchedules(cinemaId, status, keyword));
     }
 
+    /**
+     * 根据 ID 查询场次详情
+     */
+    @Operation(summary = "根据 ID 查询场次详情")
     @GetMapping("/schedules/{id}")
-    public Map<String, Object> getScheduleById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Schedule schedule = scheduleMapper.findById(id);
-            if (schedule != null) {
-                Map<String, Object> scheduleMap = new HashMap<>();
-                scheduleMap.put("id", schedule.getId());
-                scheduleMap.put("movieId", schedule.getMovieId());
-                scheduleMap.put("hallId", schedule.getHallId());
-                scheduleMap.put("cinemaId", schedule.getCinemaId());
-                scheduleMap.put("showTime", schedule.getShowTime().toString());
-                scheduleMap.put("endTime", schedule.getEndTime() != null ? schedule.getEndTime().toString() : null);
-                scheduleMap.put("price", schedule.getPrice());
-                // 根据放映时间动态判断状态（用于getScheduleById）
-                String displayStatus = schedule.getStatus();
-                if ("available".equals(schedule.getStatus()) && schedule.getShowTime().isBefore(LocalDateTime.now())) {
-                    displayStatus = "expired";
-                }
-                scheduleMap.put("status", displayStatus);
-                
-                // 添加放映厅信息
-                Hall hall = hallMapper.findById(schedule.getHallId());
-                if (hall != null) {
-                    scheduleMap.put("hallNumber", hall.getHallNumber());
-                    scheduleMap.put("rows", hall.getRows());
-                    scheduleMap.put("cols", hall.getCols());
-                }
-                
-                // 添加电影信息
-                Movie movie = movieMapper.findById(schedule.getMovieId());
-                System.out.println("=== 电影查询 (单个场次) ===");
-                System.out.println("场次ID: " + id);
-                System.out.println("场次的movieId: " + schedule.getMovieId());
-                System.out.println("查询到的电影: " + (movie != null ? movie.getTitle() : "null"));
-                if (movie != null) {
-                    scheduleMap.put("movieTitle", movie.getTitle());
-                    scheduleMap.put("moviePoster", movie.getPoster());
-                    System.out.println("设置电影标题: " + movie.getTitle());
-                } else {
-                    System.out.println("电影不存在，movieId: " + schedule.getMovieId());
-                }
-                
-                result.put("success", true);
-                result.put("data", scheduleMap);
-            } else {
-                result.put("success", false);
-                result.put("message", "场次不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取场次信息失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Map<String, Object>> getScheduleById(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getScheduleById(id));
     }
 
+    /**
+     * 新增场次
+     */
+    @Operation(summary = "新增场次")
     @PostMapping("/schedules")
-    public Map<String, Object> addSchedule(@RequestBody Schedule schedule) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            if (schedule.getStatus() == null) {
-                schedule.setStatus("available");
-            }
-            
-            // 计算结束时间
-            Movie movie = movieMapper.findById(schedule.getMovieId());
-            if (movie != null) {
-                int duration = movie.getDuration();
-                // 排片周期 = 影片时长 + 20分钟缓冲，向上取整到半小时
-                int cycleMinutes = (int) Math.ceil((duration + 20) / 30.0) * 30;
-                LocalDateTime endTime = schedule.getShowTime().plusMinutes(cycleMinutes);
-                schedule.setEndTime(endTime);
-            }
-            
-            scheduleMapper.insert(schedule);
-            
-            // 清除电影列表缓存，确保首页实时更新
-            redisService.delete("movie:showing");
-            
-            result.put("success", true);
-            result.put("message", "场次添加成功");
-            result.put("data", schedule);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "添加场次失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Schedule> addSchedule(@RequestBody Schedule schedule) {
+        return ApiResponse.success("场次添加成功", adminService.addSchedule(schedule));
     }
 
+    /**
+     * 更新场次信息
+     */
+    @Operation(summary = "更新场次信息")
     @PutMapping("/schedules/{id}")
-    public Map<String, Object> updateSchedule(@PathVariable Long id, @RequestBody Schedule schedule) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Schedule existing = scheduleMapper.findById(id);
-            if (existing == null) {
-                result.put("success", false);
-                result.put("message", "场次不存在");
-                return result;
-            }
-            
-            // 重新计算结束时间
-            Movie movie = movieMapper.findById(schedule.getMovieId());
-            if (movie != null) {
-                int duration = movie.getDuration();
-                // 排片周期 = 影片时长 + 20分钟缓冲，向上取整到半小时
-                int cycleMinutes = (int) Math.ceil((duration + 20) / 30.0) * 30;
-                LocalDateTime endTime = schedule.getShowTime().plusMinutes(cycleMinutes);
-                schedule.setEndTime(endTime);
-            }
-            
-            schedule.setId(id);
-            scheduleMapper.update(schedule);
-            result.put("success", true);
-            result.put("message", "场次更新成功");
-            result.put("data", schedule);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新场次失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Schedule> updateSchedule(@PathVariable Long id, @RequestBody Schedule schedule) {
+        return ApiResponse.success("场次更新成功", adminService.updateSchedule(id, schedule));
     }
 
+    /**
+     * 删除场次
+     */
+    @Operation(summary = "删除场次")
     @DeleteMapping("/schedules/{id}")
-    public Map<String, Object> deleteSchedule(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Schedule schedule = scheduleMapper.findById(id);
-            if (schedule == null) {
-                result.put("success", false);
-                result.put("message", "场次不存在");
-                return result;
-            }
-            
-            scheduleMapper.deleteById(id);
-            result.put("success", true);
-            result.put("message", "场次删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除场次失败: " + e.getMessage());
-        }
-        return result;
+    public ApiResponse<Void> deleteSchedule(@PathVariable Long id) {
+        adminService.deleteSchedule(id);
+        return ApiResponse.success("场次删除成功", null);
     }
 
-    // 解析 Long 类型参数
+    /**
+     * 查询指定影厅在某日的已占用场次时段
+     */
+    @Operation(summary = "查询影厅某日已占用时段")
+    @GetMapping("/schedule/occupied")
+    public ApiResponse<List<Map<String, Object>>> getOccupiedSlots(
+            @RequestParam Long hallId,
+            @RequestParam String date) {
+        LocalDate showDate = LocalDate.parse(date);
+        return ApiResponse.success(adminService.getOccupiedSlots(hallId, showDate));
+    }
+
+    /**
+     * 检查场次时间冲突
+     *
+     * 【参数处理】
+     * 前端可能以不同类型（Integer/Long/String）传递 hallId 和 duration，
+     * 这里统一转换为强类型后再委托 Service 处理。
+     */
+    @Operation(summary = "检查场次时间冲突")
+    @PostMapping("/schedule/conflict-check")
+    public ApiResponse<Map<String, Object>> checkConflict(@RequestBody Map<String, Object> params) {
+        Long hallId = parseLong(params.get("hallId"));
+        String date = (String) params.get("date");
+        String startTime = (String) params.get("startTime");
+        Integer duration = params.get("duration") instanceof Integer
+                ? (Integer) params.get("duration")
+                : Integer.parseInt(String.valueOf(params.get("duration")));
+
+        if (hallId == null || date == null || startTime == null || duration == null) {
+            return ApiResponse.error(400, "参数不全");
+        }
+
+        LocalDate showDate = LocalDate.parse(date);
+        Map<String, Object> result = adminService.checkConflict(hallId, showDate, startTime, duration);
+
+        if ((Boolean) result.get("conflict")) {
+            return ApiResponse.success("该影厅此时段已有场次，请重选", result);
+        } else {
+            return ApiResponse.success("无冲突", result);
+        }
+    }
+
+    // ==================== 公告管理 ====================
+
+    /**
+     * 获取最新公告（公开接口，无需登录）
+     */
+    @Operation(summary = "获取最新公告（公开）")
+    @GetMapping("/announcements/latest")
+    public ApiResponse<Announcement> getLatestAnnouncement() {
+        return ApiResponse.success(adminService.getLatestAnnouncement());
+    }
+
+    /**
+     * 查询所有公告
+     */
+    @Operation(summary = "查询所有公告")
+    @GetMapping("/announcements")
+    public ApiResponse<List<Announcement>> getAllAnnouncements() {
+        return ApiResponse.success(adminService.getAllAnnouncements());
+    }
+
+    /**
+     * 根据 ID 查询公告
+     */
+    @Operation(summary = "根据 ID 查询公告")
+    @GetMapping("/announcements/{id}")
+    public ApiResponse<Announcement> getAnnouncementById(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getAnnouncementById(id));
+    }
+
+    /**
+     * 新增公告
+     */
+    @Operation(summary = "新增公告")
+    @PostMapping("/announcements")
+    public ApiResponse<Announcement> addAnnouncement(@RequestBody Announcement announcement) {
+        return ApiResponse.success("公告发布成功", adminService.addAnnouncement(announcement));
+    }
+
+    /**
+     * 更新公告
+     */
+    @Operation(summary = "更新公告")
+    @PutMapping("/announcements/{id}")
+    public ApiResponse<Announcement> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement announcement) {
+        return ApiResponse.success("公告更新成功", adminService.updateAnnouncement(id, announcement));
+    }
+
+    /**
+     * 删除公告
+     */
+    @Operation(summary = "删除公告")
+    @DeleteMapping("/announcements/{id}")
+    public ApiResponse<Void> deleteAnnouncement(@PathVariable Long id) {
+        adminService.deleteAnnouncement(id);
+        return ApiResponse.success("公告删除成功", null);
+    }
+
+    /**
+     * 更新公告状态
+     */
+    @Operation(summary = "更新公告状态")
+    @PutMapping("/announcements/{id}/status")
+    public ApiResponse<Void> updateAnnouncementStatus(@PathVariable Long id, @RequestBody Map<String, String> params) {
+        adminService.updateAnnouncementStatus(id, params.get("status"));
+        return ApiResponse.success("公告状态更新成功", null);
+    }
+
+    // ==================== 用户管理 ====================
+
+    /**
+     * 查询用户列表（支持按角色筛选）
+     */
+    @Operation(summary = "查询用户列表（支持角色筛选）")
+    @GetMapping("/users")
+    public ApiResponse<List<User>> getAllUsers(@RequestParam(required = false) String role) {
+        return ApiResponse.success(adminService.getAllUsers(role));
+    }
+
+    /**
+     * 根据 ID 查询用户（密码已脱敏）
+     */
+    @Operation(summary = "根据 ID 查询用户")
+    @GetMapping("/users/{id}")
+    public ApiResponse<User> getUserById(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getUserById(id));
+    }
+
+    /**
+     * 新增用户
+     */
+    @Operation(summary = "新增用户")
+    @PostMapping("/users")
+    public ApiResponse<User> addUser(@RequestBody User user) {
+        return ApiResponse.success("用户添加成功", adminService.addUser(user));
+    }
+
+    /**
+     * 更新用户信息
+     */
+    @Operation(summary = "更新用户信息")
+    @PutMapping("/users/{id}")
+    public ApiResponse<Void> updateUser(@PathVariable Long id, @RequestBody User user) {
+        adminService.updateUser(id, user);
+        return ApiResponse.success("用户更新成功", null);
+    }
+
+    /**
+     * 删除用户
+     */
+    @Operation(summary = "删除用户")
+    @DeleteMapping("/users/{id}")
+    public ApiResponse<Void> deleteUser(@PathVariable Long id) {
+        adminService.deleteUser(id);
+        return ApiResponse.success("用户删除成功", null);
+    }
+
+    /**
+     * 更新用户状态
+     */
+    @Operation(summary = "更新用户状态")
+    @PutMapping("/users/{id}/status")
+    public ApiResponse<Void> updateUserStatus(@PathVariable Long id, @RequestBody Map<String, String> params) {
+        adminService.updateUserStatus(id, params.get("status"));
+        return ApiResponse.success("用户状态更新成功", null);
+    }
+
+    /**
+     * 重置用户密码
+     */
+    @Operation(summary = "重置用户密码")
+    @PutMapping("/users/{id}/password")
+    public ApiResponse<Void> resetUserPassword(@PathVariable Long id, @RequestBody Map<String, String> params) {
+        adminService.resetUserPassword(id, params.get("password"));
+        return ApiResponse.success("密码重置成功", null);
+    }
+
+    // ==================== 订单管理 ====================
+
+    /**
+     * 查询订单列表（支持按订单号搜索或按状态筛选）
+     */
+    @Operation(summary = "查询订单列表（支持搜索筛选）")
+    @GetMapping("/orders")
+    public ApiResponse<List<Order>> getAllOrders(
+        // 分页参数
+        //@RequestParam的作用 required = false 表示可选参数，不填时默认值为 null，不报错        
+            @RequestParam(required = false) String q,
+        // 状态筛选参数
+            @RequestParam(required = false) String status) {
+        return ApiResponse.success(adminService.getAllOrders(q, status));
+    }
+
+    /**
+     * 根据 ID 查询订单
+     */
+    @Operation(summary = "根据 ID 查询订单")
+    @GetMapping("/orders/{id}")
+    public ApiResponse<Order> getOrderById(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getOrderById(id));
+    }
+
+    /**
+     * 删除订单
+     */
+    @Operation(summary = "删除订单")
+    @DeleteMapping("/orders/{id}")
+    public ApiResponse<Void> deleteOrder(@PathVariable Long id) {
+        adminService.deleteOrder(id);
+        return ApiResponse.success("订单删除成功", null);
+    }
+
+    /**
+     * 订单退款
+     */
+    @Operation(summary = "订单退款")
+    @PutMapping("/orders/{id}/refund")
+    public ApiResponse<Void> refundOrder(@PathVariable Long id) {
+        adminService.refundOrder(id);
+        return ApiResponse.success("退款成功", null);
+    }
+
+    /**
+     * 订单取消
+     */
+    @Operation(summary = "订单取消")
+    @PutMapping("/orders/{id}/cancel")
+    public ApiResponse<Void> cancelOrder(@PathVariable Long id) {
+        //adminService.cancelOrder(id);
+        return ApiResponse.success("订单取消成功", null);
+    }
+
+    /**
+     * 订单确认
+     */
+    @Operation(summary = "订单确认")
+    @PutMapping("/orders/{id}/confirm")
+    public ApiResponse<Void> confirmOrder(@PathVariable Long id) {
+        //adminService.confirmOrder(id);
+        return ApiResponse.success("订单确认成功", null);
+    }
+
+    /**
+     * 座位管理
+     */
+    @Operation(summary = "查询所有座位")
+    @GetMapping("/seats")
+    public ApiResponse<List<Seat>> getAllSeats() {
+        return ApiResponse.success(adminService.getAllSeats());
+    }
+
+    // ==================== 私有工具方法 ====================
+
+    /**
+     * 将 Object 安全转换为 Long
+     * 前端传参类型不确定，统一在此转换
+     */
     private Long parseLong(Object obj) {
         if (obj == null) return null;
         if (obj instanceof Long) return (Long) obj;
@@ -533,597 +508,5 @@ public class AdminController {
         if (obj instanceof String) return Long.parseLong((String) obj);
         if (obj instanceof Number) return ((Number) obj).longValue();
         return null;
-    }
-    // 解析 Double 类型参数
-    private Double parseDouble(Object obj) {
-        if (obj == null) return null;
-        if (obj instanceof Double) return (Double) obj;
-        if (obj instanceof Integer) return ((Integer) obj).doubleValue();
-        if (obj instanceof String) return Double.parseDouble((String) obj);
-        if (obj instanceof Number) return ((Number) obj).doubleValue();
-        return null;
-    }
-
-    // /**
-    //  * 自动排片预览（不实际创建排片）
-    //  * GET /api/admin/schedule/preview?cinemaId=1&movieId=1&date=2026-05-15
-    //  */
-    // @GetMapping("/schedule/preview")
-    // public Map<String, Object> previewAutoSchedule(
-    //         @RequestParam Long cinemaId,
-    //         @RequestParam Long movieId,
-    //         @RequestParam String date) {
-    //     return scheduleService.previewSchedule(cinemaId, movieId, date);
-    // }
-
-    // /**
-    //  * 为指定影院自动排片
-    //  * POST /api/admin/schedule/auto
-    //  * body: { cinemaId: 1, movieId: 1, price: 50.00, date: "2026-05-15" }
-    //  */
-    // @PostMapping("/schedule/auto")
-    // public Map<String, Object> autoSchedule(@RequestBody Map<String, Object> params) {
-    //     Long cinemaId = parseLong(params.get("cinemaId"));
-    //     Long movieId = parseLong(params.get("movieId"));
-    //     Double price = parseDouble(params.get("price"));
-    //     String date = (String) params.get("date");
-
-    //     if (cinemaId == null || movieId == null || price == null || date == null) {
-    //         Map<String, Object> result = new HashMap<>();
-    //         result.put("success", false);
-    //         result.put("message", "参数不全");
-    //         return result;
-    //     }
-
-    //     return scheduleService.autoSchedule(cinemaId, movieId, BigDecimal.valueOf(price), date);
-    // }
-
-    // /**
-    //  * 为所有影院自动排片
-    //  * POST /api/admin/schedule/auto-all
-    //  * body: { movieId: 1, price: 50.00, date: "2026-05-15" }
-    //  */
-    // @PostMapping("/schedule/auto-all")
-    // public Map<String, Object> autoScheduleAll(@RequestBody Map<String, Object> params) {
-    //     Long movieId = parseLong(params.get("movieId"));
-    //     Double price = parseDouble(params.get("price"));
-    //     String date = (String) params.get("date");
-
-    //     if (movieId == null || price == null || date == null) {
-    //         Map<String, Object> result = new HashMap<>();
-    //         result.put("success", false);
-    //         result.put("message", "参数不全");
-    //         return result;
-    //     }
-
-    //     return scheduleService.autoScheduleAllCinemas(movieId, BigDecimal.valueOf(price), date);
-    // }
-
-    // /**
-    //  * 获取指定影院的固定排片档时间（用于排片时选择）
-    //  * GET /api/admin/schedule/slots?cinemaId=1&duration=148&date=2026-05-15
-    //  */
-    // @GetMapping("/schedule/slots")
-    // public Map<String, Object> getScheduleSlots(
-    //         @RequestParam Long cinemaId,
-    //         @RequestParam Integer duration,
-    //         @RequestParam(required = false) String date) {
-    //     return scheduleService.getScheduleSlots(cinemaId, duration, date);
-    // }
-
-    // /**
-    //  * 获取所有影院的固定排片档时间（批量）
-    //  * GET /api/admin/schedule/slots-all?duration=148&date=2026-05-15
-    //  */
-    // @GetMapping("/schedule/slots-all")
-    // public Map<String, Object> getAllScheduleSlots(
-    //         @RequestParam Integer duration,
-    //         @RequestParam(required = false) String date) {
-    //     return scheduleService.getAllScheduleSlots(duration, date);
-    // }
-
-    /**
-     * 获取影厅当日已占用的时间段
-     * GET /api/admin/schedule/occupied?hallId=1&date=2026-05-15
-     */
-    @GetMapping("/schedule/occupied")
-    public Map<String, Object> getOccupiedSlots(
-            @RequestParam Long hallId,
-            @RequestParam String date) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            java.time.LocalDate showDate = java.time.LocalDate.parse(date);
-            java.time.LocalDateTime startOfDay = showDate.atStartOfDay();
-            java.time.LocalDateTime endOfDay = showDate.atTime(23, 59, 59);
-            
-            List<Schedule> schedules = scheduleMapper.findByHallIdAndShowTimeBetween(hallId, startOfDay, endOfDay);
-            
-            // 获取已占用时间段
-            List<Map<String, Object>> occupiedList = new java.util.ArrayList<>();
-            for (Schedule schedule : schedules) {
-                java.time.LocalDateTime showTime = schedule.getShowTime();
-                // 使用数据库中存储的结束时间
-                java.time.LocalDateTime endTime = schedule.getEndTime();
-                
-                // 如果数据库中没有存储结束时间，则使用计算方式作为备用
-                if (endTime == null) {
-                    Movie movie = movieMapper.findById(schedule.getMovieId());
-                    int duration = movie != null ? movie.getDuration() : 120;
-                    endTime = showTime.plusMinutes(duration + 20);
-                }
-                
-                Map<String, Object> slot = new HashMap<>();
-                slot.put("scheduleId", schedule.getId());
-                slot.put("startTime", showTime.toLocalTime().toString());
-                slot.put("endTime", endTime.toLocalTime().toString());
-                
-                occupiedList.add(slot);
-            }
-            
-            // 按开始时间排序
-            occupiedList.sort((a, b) -> {
-                String timeA = (String) a.get("startTime");
-                String timeB = (String) b.get("startTime");
-                return timeA.compareTo(timeB);
-            });
-            
-            result.put("success", true);
-            result.put("data", occupiedList);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取已占用场次失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    /**
-     * 检查排片冲突
-     * POST /api/admin/schedule/conflict-check
-     * body: { hallId: 1, date: "2026-05-15", startTime: "14:00", duration: 120 }
-     */
-    @PostMapping("/schedule/conflict-check")
-    public Map<String, Object> checkConflict(@RequestBody Map<String, Object> params) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Long hallId = parseLong(params.get("hallId"));
-            String date = (String) params.get("date");
-            String startTime = (String) params.get("startTime");
-            Integer duration = params.get("duration") instanceof Integer ? 
-                    (Integer) params.get("duration") : 
-                    Integer.parseInt(String.valueOf(params.get("duration")));
-            
-            if (hallId == null || date == null || startTime == null || duration == null) {
-                result.put("success", false);
-                result.put("message", "参数不全");
-                return result;
-            }
-            
-            // 解析日期和时间
-            java.time.LocalDate showDate = java.time.LocalDate.parse(date);
-            java.time.LocalTime startTimeObj = java.time.LocalTime.parse(startTime);
-            java.time.LocalDateTime showStartTime = java.time.LocalDateTime.of(showDate, startTimeObj);
-            java.time.LocalDateTime showEndTime = showStartTime.plusMinutes(duration + 20);
-            
-            // 查询该影厅当天所有场次
-            java.time.LocalDateTime startOfDay = showDate.atStartOfDay();
-            java.time.LocalDateTime endOfDay = showDate.atTime(23, 59, 59);
-            List<Schedule> schedules = scheduleMapper.findByHallIdAndShowTimeBetween(hallId, startOfDay, endOfDay);
-            
-            // 检查是否有冲突
-            for (Schedule schedule : schedules) {
-                java.time.LocalDateTime existingStartTime = schedule.getShowTime();
-                // 使用数据库中存储的结束时间进行冲突检测
-                java.time.LocalDateTime existingEndTime = schedule.getEndTime();
-                
-                // 如果数据库中没有存储结束时间，则使用计算方式作为备用
-                if (existingEndTime == null) {
-                    Movie movie = movieMapper.findById(schedule.getMovieId());
-                    int existingDuration = movie != null ? movie.getDuration() : 120;
-                    existingEndTime = existingStartTime.plusMinutes(existingDuration + 20);
-                }
-                
-                // 检查时间段是否重叠
-                if (!(showEndTime.isBefore(existingStartTime) || showStartTime.isAfter(existingEndTime))) {
-                    result.put("success", true);
-                    result.put("conflict", true);
-                    result.put("message", "该影厅此时段已有场次，请重选");
-                    return result;
-                }
-            }
-            
-            result.put("success", true);
-            result.put("conflict", false);
-            result.put("message", "无冲突");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "冲突检测失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    // ============ 公告管理 ============
-
-    @GetMapping("/announcements/latest")
-    public Map<String, Object> getLatestAnnouncement() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Announcement> announcements = announcementMapper.findByStatus("published");
-            if (!announcements.isEmpty()) {
-                result.put("success", true);
-                result.put("data", announcements.get(0));
-            } else {
-                result.put("success", true);
-                result.put("data", null);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取最新公告失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @GetMapping("/announcements")
-    public Map<String, Object> getAllAnnouncements() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Announcement> announcements = announcementMapper.findAll();
-            result.put("success", true);
-            result.put("data", announcements);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取公告列表失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @GetMapping("/announcements/{id}")
-    public Map<String, Object> getAnnouncementById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Announcement announcement = announcementMapper.findById(id);
-            if (announcement != null) {
-                result.put("success", true);
-                result.put("data", announcement);
-            } else {
-                result.put("success", false);
-                result.put("message", "公告不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取公告信息失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PostMapping("/announcements")
-    public Map<String, Object> addAnnouncement(@RequestBody Announcement announcement) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            if (announcement.getStatus() == null) {
-                announcement.setStatus("published");
-            }
-            announcement.setPublishedAt(LocalDateTime.now());
-            announcementMapper.insert(announcement);
-            result.put("success", true);
-            result.put("message", "公告发布成功");
-            result.put("data", announcement);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "发布公告失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PutMapping("/announcements/{id}")
-    public Map<String, Object> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement announcement) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Announcement existing = announcementMapper.findById(id);
-            if (existing == null) {
-                result.put("success", false);
-                result.put("message", "公告不存在");
-                return result;
-            }
-            
-            announcement.setId(id);
-            announcementMapper.update(announcement);
-            result.put("success", true);
-            result.put("message", "公告更新成功");
-            result.put("data", announcement);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新公告失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @DeleteMapping("/announcements/{id}")
-    public Map<String, Object> deleteAnnouncement(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Announcement announcement = announcementMapper.findById(id);
-            if (announcement == null) {
-                result.put("success", false);
-                result.put("message", "公告不存在");
-                return result;
-            }
-            
-            announcementMapper.deleteById(id);
-            result.put("success", true);
-            result.put("message", "公告删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除公告失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PutMapping("/announcements/{id}/status")
-    public Map<String, Object> updateAnnouncementStatus(@PathVariable Long id, @RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            String status = params.get("status");
-            announcementMapper.updateStatus(id, status);
-            result.put("success", true);
-            result.put("message", "公告状态更新成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新公告状态失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    // ============ 用户管理 ============
-
-    @GetMapping("/users")
-    public Map<String, Object> getAllUsers(@RequestParam(required = false) String role) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<User> users;
-            if (role != null && !role.isEmpty()) {
-                users = userMapper.findByRole(role);
-            } else {
-                users = userMapper.findAll();
-            }
-            result.put("success", true);
-            result.put("data", users);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取用户列表失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @GetMapping("/users/{id}")
-    public Map<String, Object> getUserById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            User user = userMapper.findById(id);
-            if (user != null) {
-                user.setPassword("******");
-                result.put("success", true);
-                result.put("data", user);
-            } else {
-                result.put("success", false);
-                result.put("message", "用户不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取用户信息失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PostMapping("/users")
-    public Map<String, Object> addUser(@RequestBody User user) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            if (user.getRole() == null) {
-                user.setRole("user");
-            }
-            if (user.getStatus() == null) {
-                user.setStatus("active");
-            }
-            userMapper.insert(user);
-            user.setPassword("******");
-            result.put("success", true);
-            result.put("message", "用户添加成功");
-            result.put("data", user);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "添加用户失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PutMapping("/users/{id}")
-    public Map<String, Object> updateUser(@PathVariable Long id, @RequestBody User user) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            User existing = userMapper.findById(id);
-            if (existing == null) {
-                result.put("success", false);
-                result.put("message", "用户不存在");
-                return result;
-            }
-            
-            user.setId(id);
-            user.setPassword(existing.getPassword());
-            userMapper.update(user);
-            result.put("success", true);
-            result.put("message", "用户更新成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新用户失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @DeleteMapping("/users/{id}")
-    public Map<String, Object> deleteUser(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            User user = userMapper.findById(id);
-            if (user == null) {
-                result.put("success", false);
-                result.put("message", "用户不存在");
-                return result;
-            }
-            
-            userMapper.deleteById(id);
-            result.put("success", true);
-            result.put("message", "用户删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除用户失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PutMapping("/users/{id}/status")
-    public Map<String, Object> updateUserStatus(@PathVariable Long id, @RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            String status = params.get("status");
-            userMapper.updateStatus(id, status);
-            result.put("success", true);
-            result.put("message", "用户状态更新成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "更新用户状态失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PutMapping("/users/{id}/password")
-    public Map<String, Object> resetUserPassword(@PathVariable Long id, @RequestBody Map<String, String> params) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            String password = params.get("password");
-            userMapper.updatePassword(id, password);
-            result.put("success", true);
-            result.put("message", "密码重置成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "密码重置失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    // ============ 订单管理 ============
-
-    @GetMapping("/orders")
-    public Map<String, Object> getAllOrders(
-            @RequestParam(required = false) String q,
-            @RequestParam(required = false) String status) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            List<Order> orders;
-            if (status != null && !status.isEmpty()) {
-                orders = orderMapper.findByStatus(status);
-            } else if (q != null && !q.isEmpty()) {
-                Order order = orderMapper.findByOrderNumber(q);
-                orders = order != null ? List.of(order) : List.of();
-            } else {
-                orders = orderMapper.findAll();
-            }
-            result.put("success", true);
-            result.put("data", orders);
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取订单列表失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @GetMapping("/orders/{id}")
-    public Map<String, Object> getOrderById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Order order = orderMapper.findById(id);
-            if (order != null) {
-                result.put("success", true);
-                result.put("data", order);
-            } else {
-                result.put("success", false);
-                result.put("message", "订单不存在");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "获取订单信息失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @DeleteMapping("/orders/{id}")
-    public Map<String, Object> deleteOrder(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Order order = orderMapper.findById(id);
-            if (order == null) {
-                result.put("success", false);
-                result.put("message", "订单不存在");
-                return result;
-            }
-            
-            orderMapper.deleteById(id);
-            result.put("success", true);
-            result.put("message", "订单删除成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "删除订单失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    @PutMapping("/orders/{id}/refund")
-    public Map<String, Object> refundOrder(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            Order order = orderMapper.findById(id);
-            if (order == null) {
-                result.put("success", false);
-                result.put("message", "订单不存在");
-                return result;
-            }
-            
-            if (!"paid".equals(order.getStatus())) {
-                result.put("success", false);
-                result.put("message", "只能对已付款订单进行退款");
-                return result;
-            }
-            
-            order.setStatus("refunded");
-            order.setPayStatus("refunded");
-            order.setRefundStatus("refunded");
-            order.setRefundedAt(LocalDateTime.now());
-            orderMapper.update(order);
-            result.put("success", true);
-            result.put("message", "退款成功");
-        } catch (Exception e) {
-            e.printStackTrace();
-            result.put("success", false);
-            result.put("message", "退款失败: " + e.getMessage());
-        }
-        return result;
     }
 }

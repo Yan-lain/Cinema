@@ -18,7 +18,11 @@ public class Movie {
     private LocalDateTime releaseDate;
     private String director;
     private String cast;
-    private LocalDateTime createdAt;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
+    private LocalDateTime createdAt=LocalDateTime.now();//这么写以后创建时间就会自动填充当前时间
+    //修改时呢 这个创建时间也会自动填充当前时间 这不是有问题吗？
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
+    private LocalDateTime updatedAt=LocalDateTime.now();
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -44,4 +48,6 @@ public class Movie {
     public void setCast(String cast) { this.cast = cast; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

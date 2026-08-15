@@ -1,165 +1,91 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.ApiResponse;
+import com.example.demo.common.PageResponse;
+import com.example.demo.dto.response.MovieResponse;
 import com.example.demo.entity.Movie;
-import com.example.demo.mapper.MovieMapper;
-import com.example.demo.service.RedisService;
+import com.example.demo.service.MovieService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+@Tag(name = "电影管理", description = "电影查询、搜索、分类筛选等公开接口")
 @RestController
 @RequestMapping("/api/movies")
 public class MovieController {
 
     @Autowired
-    private MovieMapper movieMapper;
+    private MovieService movieService;
 
-    @Autowired
-    private RedisService redisService;
-
-    // 缓存键常量
-    private static final String MOVIE_LIST_KEY = "movie:list";
-    private static final String MOVIE_SHOWING_KEY = "movie:showing";
-    private static final String MOVIE_DETAIL_KEY = "movie:detail:";
-
+    @Operation(summary = "查询所有电影", description = "返回电影列表，包含所有状态的电影")
     @GetMapping
-    public Map<String, Object> getAllMovies() {
-        Map<String, Object> result = new HashMap<>();
-        
-        // 先从Redis获取缓存
-        Object cached = redisService.get(MOVIE_LIST_KEY);
-        if (cached != null) {
-            result.put("success", true);
-            result.put("data", cached);
-            result.put("from", "redis");
-            return result;
-        }
-        
-        // 从数据库获取
-        List<Movie> movies = movieMapper.findAll();
-        result.put("success", true);
-        result.put("data", movies);
-        result.put("from", "database");
-        
-        // 存入Redis，缓存30分钟
-        redisService.set(MOVIE_LIST_KEY, movies, 30, TimeUnit.MINUTES);
-        
-        return result;
+    public ApiResponse<List<MovieResponse>> getAllMovies() {
+        List<MovieResponse> movies = movieService.getAllMovies();
+        return ApiResponse.success(movies);
     }
 
+    @Operation(summary = "分页查询电影", description = "支持按状态筛选，分页返回电影列表")
+    @GetMapping("/page")
+    public ApiResponse<PageResponse<MovieResponse>> getMoviesPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status) {
+        PageResponse<MovieResponse> response = movieService.getMoviesWithPagination(page, size, status);
+        return ApiResponse.success(response);
+    }
+
+    @Operation(summary = "根据 ID 查询电影详情")
     @GetMapping("/{id}")
-    public Map<String, Object> getMovieById(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        String cacheKey = MOVIE_DETAIL_KEY + id;
-        
-        // 先从Redis获取缓存
-        Object cached = redisService.get(cacheKey);
-        if (cached != null) {
-            result.put("success", true);
-            result.put("data", cached);
-            result.put("from", "redis");
-            return result;
-        }
-        
-        // 从数据库获取
-        Movie movie = movieMapper.findById(id);
-        if (movie != null) {
-            result.put("success", true);
-            result.put("data", movie);
-            result.put("from", "database");
-            
-            // 存入Redis，缓存5分钟
-            redisService.set(cacheKey, movie, 5, TimeUnit.MINUTES);
-        } else {
-            result.put("success", false);
-            result.put("message", "电影不存在");
-        }
-        
-        return result;
+    public ApiResponse<MovieResponse> getMovieById(@PathVariable Long id) {
+        MovieResponse movie = movieService.getMovieById(id);
+        return ApiResponse.success(movie);
     }
 
+    @Operation(summary = "搜索电影", description = "根据关键词搜索电影（标题、导演、演员等）")
     @GetMapping("/search")
-    public Map<String, Object> searchMovies(@RequestParam String keyword) {
-        Map<String, Object> result = new HashMap<>();
-        List<Movie> movies = movieMapper.findByTitle(keyword);
-        result.put("success", true);
-        result.put("data", movies);
-        return result;
+    public ApiResponse<List<MovieResponse>> searchMovies(@RequestParam String keyword) {
+        List<MovieResponse> movies = movieService.searchMovies(keyword);
+        return ApiResponse.success(movies);
     }
 
+    @Operation(summary = "分页搜索电影")
+    @GetMapping("/search/page")
+    public ApiResponse<PageResponse<MovieResponse>> searchMoviesPage(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageResponse<MovieResponse> response = movieService.searchMoviesWithPagination(keyword, page, size);
+        return ApiResponse.success(response);
+    }
+
+    @Operation(summary = "查询正在上映的电影")
     @GetMapping("/showing")
-    public Map<String, Object> getShowingMovies() {
-        Map<String, Object> result = new HashMap<>();
-        
-        // 先从Redis获取缓存
-        Object cached = redisService.get(MOVIE_SHOWING_KEY);
-        if (cached != null) {
-            result.put("success", true);
-            result.put("data", cached);
-            result.put("from", "redis");
-            return result;
-        }
-        
-        // 从数据库获取有有效场次的电影（关联场次表查询）
-        List<Movie> movies = movieMapper.findShowingMoviesWithValidSchedule();
-        result.put("success", true);
-        result.put("data", movies);
-        result.put("from", "database");
-        
-        // 存入Redis，缓存10分钟（场次更新较频繁）
-        redisService.set(MOVIE_SHOWING_KEY, movies, 10, TimeUnit.MINUTES);
-        
-        return result;
+    public ApiResponse<List<MovieResponse>> getShowingMovies() {
+        List<MovieResponse> movies = movieService.getShowingMovies();
+        return ApiResponse.success(movies);
     }
 
+    @Operation(summary = "新增电影（管理员）")
     @PostMapping
-    public Map<String, Object> addMovie(@RequestBody Movie movie) {
-        Map<String, Object> result = new HashMap<>();
-        movie.setStatus("showing");
-        movieMapper.insert(movie);
-        
-        // 更新缓存：删除相关缓存，下次请求会重新从数据库获取
-        redisService.delete(MOVIE_LIST_KEY);
-        redisService.delete(MOVIE_SHOWING_KEY);
-        
-        result.put("success", true);
-        result.put("message", "电影添加成功");
-        result.put("data", movie);
-        return result;
+    public ApiResponse<MovieResponse> addMovie(@RequestBody Movie movie) {
+        MovieResponse response = movieService.addMovie(movie);
+        return ApiResponse.success("电影添加成功", response);
     }
 
+    @Operation(summary = "更新电影信息（管理员）")
     @PutMapping("/{id}")
-    public Map<String, Object> updateMovie(@RequestBody Movie movie) {
-        Map<String, Object> result = new HashMap<>();
-        movieMapper.update(movie);
-        
-        // 更新缓存
-        redisService.delete(MOVIE_LIST_KEY);
-        redisService.delete(MOVIE_SHOWING_KEY);
-        redisService.delete(MOVIE_DETAIL_KEY + movie.getId());
-        
-        result.put("success", true);
-        result.put("message", "电影更新成功");
-        result.put("data", movie);
-        return result;
+    public ApiResponse<MovieResponse> updateMovie(@RequestBody Movie movie) {
+        MovieResponse response = movieService.updateMovie(movie);
+        return ApiResponse.success("电影更新成功", response);
     }
 
+    @Operation(summary = "删除电影（管理员）")
     @DeleteMapping("/{id}")
-    public Map<String, Object> deleteMovie(@PathVariable Long id) {
-        Map<String, Object> result = new HashMap<>();
-        movieMapper.deleteById(id);
-        
-        // 更新缓存
-        redisService.delete(MOVIE_LIST_KEY);
-        redisService.delete(MOVIE_SHOWING_KEY);
-        redisService.delete(MOVIE_DETAIL_KEY + id);
-        
-        result.put("success", true);
-        result.put("message", "电影删除成功");
-        return result;
+    public ApiResponse<Void> deleteMovie(@PathVariable Long id) {
+        movieService.deleteMovie(id);
+        return ApiResponse.success("电影删除成功", null);
     }
 }
